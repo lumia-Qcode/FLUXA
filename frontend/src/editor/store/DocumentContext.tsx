@@ -1,9 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { Block, LayoutId, Slide } from "../../../../shared/spec";
+import { Slide } from "../../../../shared/spec";
 import {
   beginGesture as storeBeginGesture,
   cancelGesture as storeCancelGesture,
-  commands,
   commitGesture as storeCommitGesture,
   createStore,
   executeRecipe,

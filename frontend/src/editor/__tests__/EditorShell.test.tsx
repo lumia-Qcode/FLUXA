@@ -1,5 +1,4 @@
 import { render, screen } from "@testing-library/react";
-import React from "react";
 import { BrowserRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { DeckDocument } from "../store/types";
@@ -30,7 +29,11 @@ const initialDoc: DeckDocument = {
           y: 20,
           w: 80,
           h: 20,
-          content: "Phase 3 Executive Overview",
+          doc: {
+            type: "doc",
+            content: [{ type: "paragraph", content: [{ type: "text", text: "Phase 3 Executive Overview" }] }],
+          },
+          style: { fontSize: 40 },
           role: "title",
         },
       ],

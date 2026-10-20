@@ -5,6 +5,7 @@ import { Button } from "../../ui/Button";
 import { Field } from "../../ui/Field";
 import { NumberField } from "../../ui/NumberField";
 import { Select } from "../../ui/Select";
+import { BoundField } from "../../ui/BoundField";
 import { commands } from "../store/documentStore";
 import { useDocument } from "../store/DocumentContext";
 
@@ -117,6 +118,15 @@ export const BlockInspector: React.FC<BlockInspectorProps> = ({ block }) => {
             CHART OPTIONS
           </span>
           <Select
+            label="Dataset"
+            value={block.dataset}
+            options={Object.values(doc.datasets || {}).map((d) => ({
+              value: d.id,
+              label: `${d.name} (${d.rows.length} rows)`,
+            }))}
+            onChange={(dataset: string) => updateProp({ dataset })}
+          />
+          <Select
             label="Chart Kind"
             value={block.kind}
             options={[
@@ -138,21 +148,172 @@ export const BlockInspector: React.FC<BlockInspectorProps> = ({ block }) => {
           <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--ink-2)", letterSpacing: "0.02em" }}>
             KPI METRIC
           </span>
-          <Field
-            label="Value"
-            value={typeof block.value === "string" ? block.value : String(block.value || "")}
-            onChange={(e) => updateProp({ value: e.target.value })}
+          <BoundField
+            label="Metric Value"
+            value={block.value}
+            variables={doc.variables}
+            datasets={doc.datasets}
+            onChange={(val) => updateProp({ value: val })}
           />
           <Field
             label="Label"
             value={block.label}
             onChange={(e) => updateProp({ label: e.target.value })}
           />
-          <NumberField
+          <BoundField
             label="Delta (%)"
-            value={typeof block.delta === "number" ? block.delta : 0}
+            value={block.delta}
+            variables={doc.variables}
+            datasets={doc.datasets}
             onChange={(delta) => updateProp({ delta })}
           />
+        </div>
+      )}
+
+      {/* Control Block Options */}
+      {block.type === "control" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--ink-2)", letterSpacing: "0.02em" }}>
+            CONTROL SETTINGS
+          </span>
+          <Select
+            label="Control Kind"
+            value={block.control}
+            options={[
+              { value: "slider", label: "Slider" },
+              { value: "toggle", label: "Toggle Switch" },
+              { value: "select", label: "Dropdown Select" },
+              { value: "button", label: "Action Button" },
+            ]}
+            onChange={(control: any) => updateProp({ control })}
+          />
+          <Select
+            label="Target Variable"
+            value={block.variable || ""}
+            options={[
+              { value: "", label: "-- None --" },
+              ...Object.values(doc.variables || {}).map((v) => ({
+                value: v.id,
+                label: `${v.label} ($${v.id})`,
+              })),
+            ]}
+            onChange={(variable: string) => updateProp({ variable })}
+          />
+          <Field
+            label="Label"
+            value={block.label || ""}
+            onChange={(e) => updateProp({ label: e.target.value })}
+          />
+          {block.control === "slider" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px" }}>
+              <NumberField label="Min" value={block.min ?? 0} onChange={(min) => updateProp({ min })} />
+              <NumberField label="Max" value={block.max ?? 100} onChange={(max) => updateProp({ max })} />
+              <NumberField label="Step" value={block.step ?? 1} onChange={(step) => updateProp({ step })} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Table Options */}
+      {block.type === "table" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--ink-2)", letterSpacing: "0.02em" }}>
+            TABLE SETTINGS
+          </span>
+          <Select
+            label="Dataset"
+            value={block.dataset}
+            options={Object.values(doc.datasets || {}).map((d) => ({
+              value: d.id,
+              label: `${d.name} (${d.rows.length} rows)`,
+            }))}
+            onChange={(dataset: string) => updateProp({ dataset })}
+          />
+          <Select
+            label="Style"
+            value={block.style || "plain"}
+            options={[
+              { value: "plain", label: "Plain" },
+              { value: "striped", label: "Striped" },
+              { value: "ruled", label: "Ruled" },
+            ]}
+            onChange={(style: any) => updateProp({ style })}
+          />
+        </div>
+      )}
+
+      {/* HTML Widget Options */}
+      {block.type === "html" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--ink-2)", letterSpacing: "0.02em" }}>
+            HTML WIDGET CODE
+          </span>
+          <div>
+            <label style={{ fontSize: "11px", fontWeight: 500, color: "var(--ink-2)" }}>HTML</label>
+            <textarea
+              value={block.code?.html || ""}
+              onChange={(e) =>
+                updateProp({
+                  code: { ...(block.code || { html: "", css: "", js: "" }), html: e.target.value },
+                })
+              }
+              rows={4}
+              style={{
+                width: "100%",
+                fontFamily: "monospace",
+                fontSize: "12px",
+                background: "var(--bg-app)",
+                border: "1px solid var(--line)",
+                borderRadius: "4px",
+                padding: "4px",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: "11px", fontWeight: 500, color: "var(--ink-2)" }}>CSS</label>
+            <textarea
+              value={block.code?.css || ""}
+              onChange={(e) =>
+                updateProp({
+                  code: { ...(block.code || { html: "", css: "", js: "" }), css: e.target.value },
+                })
+              }
+              rows={3}
+              style={{
+                width: "100%",
+                fontFamily: "monospace",
+                fontSize: "12px",
+                background: "var(--bg-app)",
+                border: "1px solid var(--line)",
+                borderRadius: "4px",
+                padding: "4px",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: "11px", fontWeight: 500, color: "var(--ink-2)" }}>JavaScript</label>
+            <textarea
+              value={block.code?.js || ""}
+              onChange={(e) =>
+                updateProp({
+                  code: { ...(block.code || { html: "", css: "", js: "" }), js: e.target.value },
+                })
+              }
+              rows={4}
+              style={{
+                width: "100%",
+                fontFamily: "monospace",
+                fontSize: "12px",
+                background: "var(--bg-app)",
+                border: "1px solid var(--line)",
+                borderRadius: "4px",
+                padding: "4px",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
         </div>
       )}
 

@@ -29,7 +29,11 @@ function formatRelativeTime(dateStr?: string): string {
 
 export const WorkspacePage: React.FC = () => {
   const navigate = useNavigate();
-  const { addToast } = useToast();
+  const { showToast } = useToast();
+  const addToast = (message: string, type: "info" | "ok" | "warn" | "danger" | "success" | "error" = "info") => {
+    const mappedType = type === "success" ? "ok" : type === "error" ? "danger" : type;
+    showToast({ message, type: mappedType as any });
+  };
 
   const [presentations, setPresentations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,8 +47,6 @@ export const WorkspacePage: React.FC = () => {
   const [renameTarget, setRenameTarget] = useState<any | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
-  const [promptModalOpen, setPromptModalOpen] = useState(false);
-  const [promptText, setPromptText] = useState("");
   const [creating, setCreating] = useState(false);
   const [menuDeck, setMenuDeck] = useState<any | null>(null);
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
@@ -114,7 +116,15 @@ export const WorkspacePage: React.FC = () => {
             y: 35,
             w: 80,
             h: 30,
-            content: "Untitled presentation",
+            doc: {
+              type: "doc",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: "Untitled presentation" }],
+                },
+              ],
+            },
             style: { fontSize: 48, fontWeight: 700, align: "center" },
             role: "title",
           },
@@ -239,7 +249,15 @@ export const WorkspacePage: React.FC = () => {
           y: 35,
           w: 80,
           h: 30,
-          content: p.first_slide?.title || p.title || "Untitled Presentation",
+          doc: {
+            type: "doc",
+            content: [
+              {
+                type: "paragraph",
+                content: [{ type: "text", text: p.first_slide?.title || p.title || "Untitled Presentation" }],
+              },
+            ],
+          },
           style: { fontSize: 44, fontWeight: 700, align: "center" },
           role: "title",
         },
@@ -448,7 +466,7 @@ export const WorkspacePage: React.FC = () => {
             <div style={{ width: 160 }}>
               <Select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                onChange={(val) => setSortBy(val as SortOption)}
                 options={[
                   { label: "Last edited", value: "updated" },
                   { label: "Created date", value: "created" },
@@ -931,16 +949,8 @@ export const WorkspacePage: React.FC = () => {
         open={Boolean(renameTarget)}
         title="Rename presentation"
         onClose={() => setRenameTarget(null)}
-        footer={
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <Button variant="secondary" onClick={() => setRenameTarget(null)}>
-              Cancel
-            </Button>
-            <Button variant="primary" onClick={handleRenameConfirm}>
-              Save
-            </Button>
-          </div>
-        }
+        confirmLabel="Save"
+        onConfirm={handleRenameConfirm}
       >
         <Field label="Presentation title">
           <input
@@ -971,16 +981,9 @@ export const WorkspacePage: React.FC = () => {
         open={Boolean(deleteTarget)}
         title="Delete presentation?"
         onClose={() => setDeleteTarget(null)}
-        footer={
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
-              Cancel
-            </Button>
-            <Button variant="danger" onClick={() => handleDelete(deleteTarget)}>
-              Delete permanently
-            </Button>
-          </div>
-        }
+        confirmLabel="Delete permanently"
+        confirmVariant="danger"
+        onConfirm={() => handleDelete(deleteTarget)}
       >
         <p style={{ margin: 0, fontSize: 13, color: "var(--ink-secondary, #9CA3AF)" }}>
           Are you sure you want to delete &ldquo;{deleteTarget?.title}&rdquo;? This action cannot be

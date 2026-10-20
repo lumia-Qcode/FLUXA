@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   Download,
   Moon,
@@ -26,9 +26,9 @@ import { commands } from "./store/documentStore";
 import { useDocument } from "./store/DocumentContext";
 
 export const EditorShell: React.FC = () => {
-  const navigate = useNavigate();
   const {
     doc,
+    selectedSlideId,
     undo,
     redo,
     canUndo,
@@ -132,7 +132,7 @@ export const EditorShell: React.FC = () => {
       onClick: () => {
         const md = `# ${doc.title}\n\n` +
           doc.slides
-            .map((s, idx) => `## Slide ${idx + 1}: ${s.title || "Untitled"}\n${s.notes || ""}`)
+            .map((s: any, idx) => `## Slide ${idx + 1}: ${s.title || "Untitled"}\n${s.notes || ""}`)
             .join("\n\n---\n\n");
         navigator.clipboard.writeText(md);
         showToast({ message: "Markdown outline copied to clipboard!" });
@@ -195,6 +195,16 @@ export const EditorShell: React.FC = () => {
             slides={doc.slides}
             theme={activeTheme}
             datasets={doc.datasets}
+            variables={doc.variables}
+            presentationId={doc.id}
+            initialSlideIndex={Math.max(0, doc.slides.findIndex((s) => s.id === selectedSlideId))}
+            onControlChange={(varName, val) => {
+              execute("Set Variable", (draft) => {
+                if (draft.variables[varName]) {
+                  draft.variables[varName].value = val;
+                }
+              });
+            }}
             onClose={() => setPresenting(false)}
           />
         )}
@@ -402,6 +412,16 @@ export const EditorShell: React.FC = () => {
           slides={doc.slides}
           theme={activeTheme}
           datasets={doc.datasets}
+          variables={doc.variables}
+          presentationId={doc.id}
+          initialSlideIndex={Math.max(0, doc.slides.findIndex((s) => s.id === selectedSlideId))}
+          onControlChange={(varName, val) => {
+            execute("Set Variable", (draft) => {
+              if (draft.variables[varName]) {
+                draft.variables[varName].value = val;
+              }
+            });
+          }}
           onClose={() => setPresenting(false)}
         />
       )}

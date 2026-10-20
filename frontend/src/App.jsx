@@ -6,6 +6,7 @@ import { WorkspacePage } from "./pages/WorkspacePage";
 import { EditorRoute } from "./editor/EditorRoute";
 import { ShareViewer } from "./pages/ShareViewer";
 import { PrintRoute } from "./pages/PrintRoute";
+import { PresenterPage } from "./pages/PresenterPage";
 import CreatePresentation from "./pages/CreatePresentation.jsx";
 
 function NotFound() {
@@ -62,6 +63,7 @@ export default function App() {
           {/* Full-bleed viewer & print routes */}
           <Route path="v/:id" element={<ShareViewer />} />
           <Route path="print/:id" element={<PrintRoute />} />
+          <Route path="presenter/:id" element={<PresenterPage />} />
 
           {/* Fallback */}
           <Route path="*" element={<NotFound />} />

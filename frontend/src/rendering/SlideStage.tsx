@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Block, Dataset, Slide } from "../../../shared/spec";
+import { Block, Dataset, Slide, Variable } from "../../../shared/spec";
 import { BlockRenderer } from "./blocks/BlockRenderer";
 import { getTheme, getThemeCssVariables, Theme } from "./themes";
 
@@ -10,10 +10,13 @@ export interface SlideStageProps {
   theme?: Theme;
   themeOverrides?: Partial<Theme>;
   datasets?: Record<string, Dataset>;
+  variables?: Record<string, Variable>;
   mode?: StageMode;
+  buildStep?: number;
   selectedBlockId?: string | null;
   onSelectBlock?: (blockId: string) => void;
   onControlChange?: (variable: string, value: any) => void;
+  onNavigateSlide?: (slideId: string) => void;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -26,10 +29,13 @@ export const SlideStage: React.FC<SlideStageProps> = ({
   theme,
   themeOverrides,
   datasets,
+  variables,
   mode = "edit",
+  buildStep,
   selectedBlockId,
   onSelectBlock,
   onControlChange,
+  onNavigateSlide,
   className = "",
   style = {},
 }) => {
@@ -158,8 +164,14 @@ export const SlideStage: React.FC<SlideStageProps> = ({
         }}
       >
         {/* Render blocks in array order (z-order) */}
-        {blocks.map((block: Block) => {
+        {blocks.map((block: Block, bIdx: number) => {
           const isSelected = mode === "edit" && selectedBlockId === block.id;
+
+          const isHiddenByBuild =
+            buildStep !== undefined &&
+            block.animation &&
+            block.animation.length > 0 &&
+            bIdx > buildStep;
 
           return (
             <div
@@ -176,7 +188,9 @@ export const SlideStage: React.FC<SlideStageProps> = ({
                 outline: isSelected ? "2px solid var(--signal, #2352F5)" : "none",
                 outlineOffset: isSelected ? "2px" : "0",
                 cursor: mode === "edit" ? "move" : "default",
-                pointerEvents: mode === "thumbnail" ? "none" : "auto",
+                pointerEvents: mode === "thumbnail" ? "none" : isHiddenByBuild ? "none" : "auto",
+                opacity: isHiddenByBuild ? 0 : 1,
+                transition: "opacity 0.3s ease",
               }}
               onClick={(e) => {
                 if (mode === "edit" && onSelectBlock) {
@@ -188,9 +202,11 @@ export const SlideStage: React.FC<SlideStageProps> = ({
               <BlockRenderer
                 block={block}
                 datasets={datasets}
+                variables={variables}
                 themeChartColors={activeTheme.colors.chart}
                 interactive={isInteractive}
                 onControlChange={onControlChange}
+                onNavigateSlide={onNavigateSlide}
               />
             </div>
           );

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Copy, EyeOff, Plus, Trash2 } from "lucide-react";
-import { Slide } from "../../../../shared/spec";
+import { Dataset, Slide, Variable } from "../../../../shared/spec";
 import { SlideStage } from "../../rendering/SlideStage";
 import { Theme } from "../../rendering/themes";
 import { Menu, MenuItem } from "../../ui/Menu";
@@ -10,6 +10,8 @@ interface SlideThumbnailProps {
   index: number;
   isActive: boolean;
   theme: Theme;
+  datasets?: Record<string, Dataset>;
+  variables?: Record<string, Variable>;
   onSelect: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
@@ -25,6 +27,8 @@ export const SlideThumbnail: React.FC<SlideThumbnailProps> = ({
   index,
   isActive,
   theme,
+  datasets,
+  variables,
   onSelect,
   onDuplicate,
   onDelete,
@@ -122,7 +126,7 @@ export const SlideThumbnail: React.FC<SlideThumbnailProps> = ({
             pointerEvents: "none",
           }}
         >
-          <SlideStage slide={slide} theme={theme} mode="thumbnail" />
+          <SlideStage slide={slide} theme={theme} datasets={datasets} variables={variables} mode="thumbnail" />
         </div>
       </div>
 

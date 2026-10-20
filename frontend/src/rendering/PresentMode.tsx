@@ -1,14 +1,16 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Dataset, Slide } from "../../../shared/spec";
+import { Dataset, Slide, Variable } from "../../../shared/spec";
 import { SlideStage } from "./SlideStage";
 import { getTheme, Theme } from "./themes";
 
-interface PresentModeProps {
+export interface PresentModeProps {
   slides: Slide[] | any[];
   initialSlideIndex?: number;
   theme?: Theme;
   datasets?: Record<string, Dataset>;
+  variables?: Record<string, Variable>;
+  presentationId?: string | number;
   onClose: () => void;
   onControlChange?: (variable: string, value: any) => void;
 }
@@ -18,10 +20,13 @@ export const PresentMode: React.FC<PresentModeProps> = ({
   initialSlideIndex = 0,
   theme,
   datasets,
+  variables,
+  presentationId,
   onClose,
   onControlChange,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialSlideIndex);
+  const [buildStep, setBuildStep] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [isBlanked, setIsBlanked] = useState(false);
   const hideTimerRef = useRef<number | null>(null);
@@ -30,13 +35,60 @@ export const PresentMode: React.FC<PresentModeProps> = ({
   const currentSlide = slides[currentIndex] || slides[0];
   const activeTheme = theme || getTheme();
 
+  const channelRef = useRef<BroadcastChannel | null>(null);
+
+  // BroadcastChannel 2-way sync with Presenter View
+  useEffect(() => {
+    if (!presentationId || typeof BroadcastChannel === "undefined") return;
+
+    const channel = new BroadcastChannel(`fluxa_presentation_${presentationId}`);
+    channelRef.current = channel;
+
+    channel.onmessage = (e) => {
+      const msg = e.data;
+      if (!msg) return;
+
+      if (msg.type === "navigate") {
+        if (typeof msg.slideIndex === "number") setCurrentIndex(msg.slideIndex);
+        if (typeof msg.buildStep === "number") setBuildStep(msg.buildStep);
+      } else if (msg.type === "request_sync") {
+        // Send current state
+        channel.postMessage({
+          type: "sync",
+          slideIndex: currentIndex,
+          buildStep,
+          variables,
+          datasets,
+          slides,
+        });
+      }
+    };
+
+    return () => {
+      channel.close();
+      channelRef.current = null;
+    };
+  }, [presentationId, currentIndex, buildStep, variables, datasets, slides]);
+
+  // Whenever state changes, broadcast to presenter window
+  useEffect(() => {
+    if (channelRef.current) {
+      channelRef.current.postMessage({
+        type: "sync",
+        slideIndex: currentIndex,
+        buildStep,
+        variables,
+        datasets,
+        slides,
+      });
+    }
+  }, [currentIndex, buildStep, variables, datasets, slides]);
+
   // Request Fullscreen on mount
   useEffect(() => {
     const el = document.documentElement;
     if (el.requestFullscreen && !document.fullscreenElement) {
-      el.requestFullscreen().catch(() => {
-        // Fullscreen API may require direct user gesture in some browsers
-      });
+      el.requestFullscreen().catch(() => {});
     }
 
     return () => {
@@ -46,6 +98,59 @@ export const PresentMode: React.FC<PresentModeProps> = ({
     };
   }, []);
 
+  const prefersReducedMotion =
+    typeof window !== "undefined" &&
+    window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Advance builds or slides
+  const handleAdvance = () => {
+    if (!currentSlide) return;
+
+    if (prefersReducedMotion) {
+      // Reduced motion: advance slide directly
+      if (currentIndex < totalSlides - 1) {
+        setCurrentIndex((i) => i + 1);
+        setBuildStep(0);
+      }
+      return;
+    }
+
+    const animatedBlocks = (currentSlide.blocks || []).filter(
+      (b: any) => b.animation && b.animation.length > 0
+    );
+
+    if (buildStep < animatedBlocks.length) {
+      setBuildStep((s) => s + 1);
+    } else if (currentIndex < totalSlides - 1) {
+      setCurrentIndex((i) => i + 1);
+      setBuildStep(0);
+    }
+  };
+
+  const handleGoBack = () => {
+    if (!currentSlide) return;
+
+    if (prefersReducedMotion) {
+      if (currentIndex > 0) {
+        setCurrentIndex((i) => i - 1);
+        setBuildStep(0);
+      }
+      return;
+    }
+
+    if (buildStep > 0) {
+      setBuildStep((s) => s - 1);
+    } else if (currentIndex > 0) {
+      const prevSlide = slides[currentIndex - 1];
+      const prevAnimated = (prevSlide?.blocks || []).filter(
+        (b: any) => b.animation && b.animation.length > 0
+      );
+      setCurrentIndex((i) => i - 1);
+      setBuildStep(prevAnimated.length);
+    }
+  };
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -53,10 +158,10 @@ export const PresentMode: React.FC<PresentModeProps> = ({
         onClose();
       } else if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") {
         e.preventDefault();
-        setCurrentIndex((i) => Math.min(totalSlides - 1, i + 1));
+        handleAdvance();
       } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
         e.preventDefault();
-        setCurrentIndex((i) => Math.max(0, i - 1));
+        handleGoBack();
       } else if (e.key === "b" || e.key === "B") {
         setIsBlanked((b) => !b);
       } else if (e.key === "f" || e.key === "F") {
@@ -70,7 +175,7 @@ export const PresentMode: React.FC<PresentModeProps> = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [totalSlides, onClose]);
+  }, [totalSlides, onClose, buildStep, currentIndex, currentSlide, prefersReducedMotion]);
 
   // Mouse activity auto-hiding HUD after 2 seconds
   useEffect(() => {
@@ -93,6 +198,12 @@ export const PresentMode: React.FC<PresentModeProps> = ({
 
   const progressPercent = totalSlides > 0 ? ((currentIndex + 1) / totalSlides) * 100 : 0;
 
+  const handleOpenPresenterWindow = () => {
+    if (presentationId) {
+      window.open(`/presenter/${presentationId}`, "_blank", "width=1200,height=800");
+    }
+  };
+
   return createPortal(
     <div
       className="fluxa-present-portal"
@@ -110,9 +221,7 @@ export const PresentMode: React.FC<PresentModeProps> = ({
       }}
       onClick={() => {
         // Advance on slide background click
-        if (currentIndex < totalSlides - 1) {
-          setCurrentIndex((i) => i + 1);
-        }
+        handleAdvance();
       }}
     >
       {/* Blackout Blank Overlay (B hotkey) */}
@@ -125,14 +234,23 @@ export const PresentMode: React.FC<PresentModeProps> = ({
               slide={currentSlide}
               theme={activeTheme}
               datasets={datasets}
+              variables={variables}
               mode="present"
+              buildStep={buildStep}
               onControlChange={onControlChange}
+              onNavigateSlide={(slideId) => {
+                const idx = slides.findIndex((s) => s.id === slideId);
+                if (idx !== -1) {
+                  setCurrentIndex(idx);
+                  setBuildStep(0);
+                }
+              }}
             />
           )}
         </div>
       )}
 
-      {/* Auto-Hiding Controls HUD */}
+      {/* Auto-Hiding Controls HUD (No backdrop blur per Section 6.7) */}
       <div
         className="present-controls-hud"
         style={{
@@ -143,9 +261,8 @@ export const PresentMode: React.FC<PresentModeProps> = ({
           display: "flex",
           alignItems: "center",
           gap: "12px",
-          background: "rgba(18, 18, 20, 0.88)",
-          backdropFilter: "blur(8px)",
-          border: "1px solid rgba(255, 255, 255, 0.15)",
+          background: "#18181A",
+          border: "1px solid #2C2C30",
           borderRadius: "24px",
           padding: "6px 16px",
           color: "#FFFFFF",
@@ -160,13 +277,13 @@ export const PresentMode: React.FC<PresentModeProps> = ({
       >
         <button
           type="button"
-          disabled={currentIndex <= 0}
-          onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+          disabled={currentIndex <= 0 && buildStep <= 0}
+          onClick={handleGoBack}
           style={{
             background: "transparent",
             border: "none",
-            color: currentIndex <= 0 ? "#666" : "#FFF",
-            cursor: currentIndex <= 0 ? "default" : "pointer",
+            color: currentIndex <= 0 && buildStep <= 0 ? "#666" : "#FFF",
+            cursor: currentIndex <= 0 && buildStep <= 0 ? "default" : "pointer",
             fontSize: "15px",
             padding: "4px 8px",
           }}
@@ -182,7 +299,7 @@ export const PresentMode: React.FC<PresentModeProps> = ({
         <button
           type="button"
           disabled={currentIndex >= totalSlides - 1}
-          onClick={() => setCurrentIndex((i) => Math.min(totalSlides - 1, i + 1))}
+          onClick={handleAdvance}
           style={{
             background: "transparent",
             border: "none",
@@ -197,6 +314,25 @@ export const PresentMode: React.FC<PresentModeProps> = ({
         </button>
 
         <div style={{ width: 1, height: 16, background: "rgba(255,255,255,0.2)", margin: "0 4px" }} />
+
+        {/* Presenter View Button */}
+        {presentationId && (
+          <button
+            type="button"
+            onClick={handleOpenPresenterWindow}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#FFF",
+              cursor: "pointer",
+              fontSize: "12px",
+              padding: "4px 8px",
+              opacity: 0.9,
+            }}
+          >
+            Presenter View
+          </button>
+        )}
 
         <button
           type="button"

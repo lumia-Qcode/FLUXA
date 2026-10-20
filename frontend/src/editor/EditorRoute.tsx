@@ -88,7 +88,15 @@ export const EditorRoute: React.FC = () => {
                 y: 35,
                 w: 80,
                 h: 30,
-                content: p.title || "Untitled Presentation",
+                doc: {
+                  type: "doc",
+                  content: [
+                    {
+                      type: "paragraph",
+                      content: [{ type: "text", text: p.title || "Untitled Presentation" }],
+                    },
+                  ],
+                },
                 style: { fontSize: 48, fontWeight: 700, align: "center" },
                 role: "title",
               },

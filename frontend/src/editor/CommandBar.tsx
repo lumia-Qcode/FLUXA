@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Copy, Eye, Layout, Moon, Play, Plus, Search, Sun } from "lucide-react";
-import { commands } from "./store/documentStore";
+import { Eye, Moon, Play, Search, Sun } from "lucide-react";
 import { useDocument } from "./store/DocumentContext";
 
 interface CommandBarProps {
@@ -19,7 +18,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({
   onToggleThemeMode,
   isDarkMode,
 }) => {
-  const { doc, setSelectedSlideId, execute } = useDocument();
+  const { doc, setSelectedSlideId } = useDocument();
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -51,7 +50,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({
         onClose();
       },
     },
-    ...doc.slides.map((s, idx) => ({
+    ...doc.slides.map((s: any, idx) => ({
       id: `jump-slide-${s.id}`,
       label: `Jump to Slide ${idx + 1}: ${s.title || "Untitled slide"}`,
       icon: <Eye size={14} />,

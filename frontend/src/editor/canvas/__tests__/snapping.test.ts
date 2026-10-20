@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Block } from "../../../../shared/spec";
+import { Block } from "../../../../../shared/spec";
 import { computeSnapping } from "../snapping";
 
 describe("computeSnapping", () => {
@@ -7,7 +7,7 @@ describe("computeSnapping", () => {
     {
       id: "other-1",
       type: "shape",
-      shape: "rectangle",
+      shape: "rect",
       x: 500,
       y: 500,
       w: 200,

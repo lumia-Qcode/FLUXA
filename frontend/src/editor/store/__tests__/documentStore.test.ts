@@ -34,7 +34,10 @@ const mockDoc: DeckDocument = {
           y: 20,
           w: 80,
           h: 30,
-          content: "Hello World",
+          doc: {
+            type: "doc",
+            content: [{ type: "paragraph", content: [{ type: "text", text: "Hello World" }] }],
+          },
           style: { fontSize: 40 },
           role: "title",
         },
@@ -174,7 +177,7 @@ describe("documentStore", () => {
     store = executeRecipe(store, "Duplicate slide", commands.duplicateSlide("slide-1", "slide-dup"));
     expect(store.doc.slides).toHaveLength(4);
     expect(store.doc.slides[1].id).toBe("slide-dup");
-    expect(store.doc.slides[1].blocks[0].content).toBe("Hello World");
+    expect((store.doc.slides[1].blocks[0] as any).doc.content[0].content[0].text).toBe("Hello World");
 
     // Remove slide
     store = executeRecipe(store, "Remove slide", commands.removeSlide("slide-dup"));
@@ -196,7 +199,7 @@ describe("documentStore", () => {
       commands.addBlock("slide-1", {
         id: "block-2",
         type: "shape",
-        shape: "rectangle",
+        shape: "rect",
         x: 30,
         y: 40,
         w: 20,

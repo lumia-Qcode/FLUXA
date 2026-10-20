@@ -32,6 +32,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({ theme }) => {
   const [zoomMode, setZoomMode] = useState<"fit" | number>("fit");
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+  const [tryItMode, setTryItMode] = useState<boolean>(false);
 
   // Drag & Resize state
   const dragRef = useRef<{
@@ -333,6 +334,8 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({ theme }) => {
           });
           setSelectedBlockIds([newBlock.id]);
         }}
+        tryItMode={tryItMode}
+        onToggleTryIt={() => setTryItMode((v) => !v)}
       />
 
       {/* Main Viewport Stage Area */}
@@ -371,13 +374,23 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({ theme }) => {
               slide={selectedSlide}
               theme={theme}
               datasets={doc.datasets}
-              mode="edit"
-              selectedBlockId={selectedBlockIds[0] || null}
-              onSelectBlock={(blockId) => setSelectedBlockIds([blockId])}
+              variables={doc.variables}
+              mode={tryItMode ? "present" : "edit"}
+              selectedBlockId={tryItMode ? null : selectedBlockIds[0] || null}
+              onSelectBlock={(blockId) => {
+                if (!tryItMode) setSelectedBlockIds([blockId]);
+              }}
+              onControlChange={(varName, val) => {
+                execute("Set Variable", (draft) => {
+                  if (draft.variables[varName]) {
+                    draft.variables[varName].value = val;
+                  }
+                });
+              }}
             />
 
             {/* Selection Bounding Box & Handles */}
-            {activeBlock && (
+            {!tryItMode && activeBlock && (
               <SelectionOverlay
                 block={activeBlock}
                 scale={scale}
@@ -386,30 +399,31 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({ theme }) => {
             )}
 
             {/* Transparent Interactive Layer for Dragging & Double-Click */}
-            {selectedSlide.blocks.map((block) => (
-              <div
-                key={`hit-${block.id}`}
-                className="ui-block-hit-target"
-                onPointerDown={(e) => handleBlockPointerDown(e, block)}
-                onDoubleClick={(e) => {
-                  e.stopPropagation();
-                  if (block.type === "text") {
-                    setEditingBlockId(block.id);
-                  }
-                }}
-                style={{
-                  position: "absolute",
-                  left: `${block.x}px`,
-                  top: `${block.y}px`,
-                  width: `${block.w}px`,
-                  height: `${block.h}px`,
-                  transform: block.rotation ? `rotate(${block.rotation}deg)` : undefined,
-                  transformOrigin: "center center",
-                  cursor: "move",
-                  zIndex: 8000,
-                }}
-              />
-            ))}
+            {!tryItMode &&
+              selectedSlide.blocks.map((block) => (
+                <div
+                  key={`hit-${block.id}`}
+                  className="ui-block-hit-target"
+                  onPointerDown={(e) => handleBlockPointerDown(e, block)}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    if (block.type === "text") {
+                      setEditingBlockId(block.id);
+                    }
+                  }}
+                  style={{
+                    position: "absolute",
+                    left: `${block.x}px`,
+                    top: `${block.y}px`,
+                    width: `${block.w}px`,
+                    height: `${block.h}px`,
+                    transform: block.rotation ? `rotate(${block.rotation}deg)` : undefined,
+                    transformOrigin: "center center",
+                    cursor: "move",
+                    zIndex: 8000,
+                  }}
+                />
+              ))}
 
             {/* In-Place Tiptap Rich Text Editor */}
             {editingBlockId && (

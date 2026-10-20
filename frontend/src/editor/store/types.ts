@@ -1,4 +1,4 @@
-import { Dataset, DeckSettings, LayoutId, Slide, Variable } from "../../../../shared/spec";
+import { Dataset, DeckSettings, Slide, Variable } from "../../../../shared/spec";
 
 export type SaveStatus = "saved" | "saving" | "offline" | "error" | "conflict";
 

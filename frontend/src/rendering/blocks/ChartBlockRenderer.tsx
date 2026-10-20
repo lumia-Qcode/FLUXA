@@ -14,7 +14,8 @@ import {
   Filler,
 } from "chart.js";
 import { Bar, Line, Pie, Doughnut, Radar, Scatter } from "react-chartjs-2";
-import { Block, Dataset } from "../../../../shared/spec";
+import { Block, Dataset, Variable } from "../../../../shared/spec";
+import { buildReactiveScope } from "../../runtime/reactiveEngine";
 
 // Register Chart.js components
 ChartJS.register(
@@ -36,6 +37,8 @@ type ChartBlock = Extract<Block, { type: "chart" }>;
 interface Props {
   block: ChartBlock;
   dataset?: Dataset;
+  datasets?: Record<string, Dataset>;
+  variables?: Record<string, Variable>;
   themeChartColors?: string[];
 }
 
@@ -51,28 +54,36 @@ const DEFAULT_CHART_COLORS = [
 export const ChartBlockRenderer: React.FC<Props> = ({
   block,
   dataset,
+  datasets = {},
+  variables = {},
   themeChartColors = DEFAULT_CHART_COLORS,
 }) => {
   const { kind, xField = "label", series = [], options = {} } = block;
 
-  // Extract labels and row data from dataset
-  const rows = dataset?.rows || [
-    { [xField]: "2023", value: 35 },
-    { [xField]: "2024", value: 55 },
-    { [xField]: "2025", value: 75 },
-    { [xField]: "2026", value: 95 },
-  ];
+  const reactiveScope = React.useMemo(() => {
+    return buildReactiveScope(datasets, variables);
+  }, [datasets, variables]);
 
-  const labels = rows.map((r) => String(r[xField] ?? ""));
+  const activeDataset = dataset || (block.dataset ? datasets[block.dataset] : undefined);
+  const rows = activeDataset
+    ? reactiveScope.datasets[activeDataset.id]?.rows || activeDataset.rows
+    : [
+        { [xField]: "2023", value: 35 },
+        { [xField]: "2024", value: 55 },
+        { [xField]: "2025", value: 75 },
+        { [xField]: "2026", value: 95 },
+      ];
+
+  const labels = rows.map((r: any) => String(r[xField] ?? ""));
 
   const seriesDefs =
     series.length > 0
       ? series
       : [{ field: "value", label: options.unit || "Value" }];
 
-  const datasets = seriesDefs.map((s, idx) => {
+  const chartSeriesDatasets = seriesDefs.map((s, idx) => {
     const color = s.color || themeChartColors[idx % themeChartColors.length];
-    const dataValues = rows.map((r) => Number(r[s.field] ?? 0));
+    const dataValues = rows.map((r: any) => Number(r[s.field] ?? 0));
 
     if (kind === "pie" || kind === "donut") {
       return {
@@ -108,20 +119,24 @@ export const ChartBlockRenderer: React.FC<Props> = ({
 
   const chartData = {
     labels,
-    datasets,
+    datasets: chartSeriesDatasets,
   };
 
   const isHorizontal = kind === "bar";
-  const animateDuration = options.animateMs ?? 700;
+  const prefersReducedMotion =
+    typeof window !== "undefined" &&
+    window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const animateDuration = prefersReducedMotion ? 0 : (options.animateMs ?? 700);
 
   const chartOptions: any = {
     responsive: true,
     maintainAspectRatio: false,
     indexAxis: isHorizontal ? ("y" as const) : ("x" as const),
-    animation: {
+    animation: animateDuration > 0 ? {
       duration: animateDuration,
       easing: "easeInOutQuart",
-    },
+    } : false,
     plugins: {
       legend: {
         display: options.legend !== "off",
@@ -199,7 +214,7 @@ export const ChartBlockRenderer: React.FC<Props> = ({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, rIdx) => (
+          {rows.map((row: any, rIdx: number) => (
             <tr key={rIdx}>
               <th scope="row">{String(row[xField] ?? "")}</th>
               {seriesDefs.map((s) => (

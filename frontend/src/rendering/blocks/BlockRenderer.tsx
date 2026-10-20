@@ -1,5 +1,5 @@
 import React from "react";
-import { Block, Dataset } from "../../../../shared/spec";
+import { Block, Dataset, Variable } from "../../../../shared/spec";
 import { TextBlockRenderer } from "./TextBlockRenderer";
 import { ShapeBlockRenderer } from "./ShapeBlockRenderer";
 import { ImageBlockRenderer } from "./ImageBlockRenderer";
@@ -12,22 +12,28 @@ import { ComparisonBlockRenderer } from "./ComparisonBlockRenderer";
 import { QuoteBlockRenderer } from "./QuoteBlockRenderer";
 import { ControlBlockRenderer } from "./ControlBlockRenderer";
 import { EmbedBlockRenderer } from "./EmbedBlockRenderer";
+import { HtmlBlockRenderer } from "./HtmlBlockRenderer";
+import { TabsBlockRenderer } from "./TabsBlockRenderer";
 import { UnknownBlockRenderer } from "./UnknownBlockRenderer";
 
-interface Props {
+export interface BlockRendererProps {
   block: Block;
   datasets?: Record<string, Dataset>;
+  variables?: Record<string, Variable>;
   themeChartColors?: string[];
   interactive?: boolean;
   onControlChange?: (variable: string, val: any) => void;
+  onNavigateSlide?: (slideId: string) => void;
 }
 
-export const BlockRenderer: React.FC<Props> = ({
+export const BlockRenderer: React.FC<BlockRendererProps> = ({
   block,
-  datasets,
+  datasets = {},
+  variables = {},
   themeChartColors,
   interactive,
   onControlChange,
+  onNavigateSlide,
 }) => {
   switch (block.type) {
     case "text":
@@ -42,17 +48,27 @@ export const BlockRenderer: React.FC<Props> = ({
       return (
         <ChartBlockRenderer
           block={block}
-          dataset={datasets?.[block.dataset]}
+          dataset={datasets[block.dataset]}
+          datasets={datasets}
+          variables={variables}
           themeChartColors={themeChartColors}
         />
       );
     case "kpi":
-      return <KpiBlockRenderer block={block} />;
+      return (
+        <KpiBlockRenderer
+          block={block}
+          datasets={datasets}
+          variables={variables}
+        />
+      );
     case "table":
       return (
         <TableBlockRenderer
           block={block}
-          dataset={datasets?.[block.dataset]}
+          dataset={datasets[block.dataset]}
+          datasets={datasets}
+          variables={variables}
         />
       );
     case "steps":
@@ -66,13 +82,33 @@ export const BlockRenderer: React.FC<Props> = ({
       return (
         <ControlBlockRenderer
           block={block}
+          variables={variables}
           interactive={interactive}
           onValueChange={onControlChange}
+          onNavigateSlide={onNavigateSlide}
+        />
+      );
+    case "html":
+      return (
+        <HtmlBlockRenderer
+          block={block}
+          variables={variables}
+          interactive={interactive}
+          onVariableChange={onControlChange}
+        />
+      );
+    case "tabs":
+      return (
+        <TabsBlockRenderer
+          block={block}
+          datasets={datasets}
+          variables={variables}
+          interactive={interactive}
         />
       );
     case "embed":
       return <EmbedBlockRenderer block={block} />;
     default:
-      return <UnknownBlockRenderer type={(block as any).type || "unknown"} id={block.id} />;
+      return <UnknownBlockRenderer type={(block as any).type || "unknown"} id={(block as any).id || "unknown"} />;
   }
 };

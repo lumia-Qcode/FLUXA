@@ -161,6 +161,8 @@ export const SlideRail: React.FC<SlideRailProps> = ({ theme, onOpenSorter }) => 
             index={idx}
             isActive={slide.id === selectedSlideId}
             theme={theme}
+            datasets={doc.datasets}
+            variables={doc.variables}
             onSelect={() => setSelectedSlideId(slide.id)}
             onDuplicate={() => execute("Duplicate Slide", commands.duplicateSlide(slide.id))}
             onDelete={() => handleDeleteSlide(slide.id)}

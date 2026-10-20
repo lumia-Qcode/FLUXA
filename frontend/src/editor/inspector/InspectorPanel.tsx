@@ -4,6 +4,8 @@ import { Tabs } from "../../ui/Tabs";
 import { useDocument } from "../store/DocumentContext";
 import { BlockInspector } from "./BlockInspector";
 import { SlideInspector } from "./SlideInspector";
+import { DataInspector } from "./DataInspector";
+import { AnimateInspector } from "./AnimateInspector";
 
 export const InspectorPanel: React.FC = () => {
   const { selectedSlide, selectedBlockIds } = useDocument();
@@ -40,23 +42,9 @@ export const InspectorPanel: React.FC = () => {
           activeBlock ? <BlockInspector block={activeBlock} /> : <SlideInspector />
         )}
 
-        {activeTab === "animate" && (
-          <div style={{ padding: "16px", color: "var(--ink-2)", fontSize: "13px" }}>
-            <p style={{ margin: "0 0 8px", fontWeight: 600, color: "var(--ink)" }}>Build Animations</p>
-            <p style={{ margin: 0, fontSize: "12px", lineHeight: 1.5 }}>
-              Block transitions and tween sequences will be enabled in Phase 4.
-            </p>
-          </div>
-        )}
+        {activeTab === "animate" && <AnimateInspector />}
 
-        {activeTab === "data" && (
-          <div style={{ padding: "16px", color: "var(--ink-2)", fontSize: "13px" }}>
-            <p style={{ margin: "0 0 8px", fontWeight: 600, color: "var(--ink)" }}>Live Datasets & Variables</p>
-            <p style={{ margin: 0, fontSize: "12px", lineHeight: 1.5 }}>
-              Spreadsheet data grid and variable bindings will be enabled in Phase 4.
-            </p>
-          </div>
-        )}
+        {activeTab === "data" && <DataInspector />}
 
         {activeTab === "ask" && (
           <div style={{ padding: "16px", color: "var(--ink-2)", fontSize: "13px" }}>

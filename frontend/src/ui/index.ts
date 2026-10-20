@@ -13,3 +13,4 @@ export * from "./Toast";
 export * from "./Dialog";
 export * from "./Menu";
 export * from "./Popover";
+export * from "./BoundField";
