@@ -1,0 +1,26 @@
+{
+  "name": "fluxa-workspace",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -p \"[{name}]\" -n \"backend,frontend\" -c \"yellow.bold,cyan.bold\" \"python run.py\" \"npm run dev --workspace=frontend\"",
+    "build": "npm run build --workspace=frontend",
+    "test": "python -m pytest && npm run test --workspace=frontend",
+    "test:unit": "npm run test --workspace=frontend",
+    "test:backend": "python -m pytest",
+    "test:e2e": "playwright test",
+    "lint": "python -m ruff check . && npm run lint --workspace=frontend",
+    "lint:fix": "python -m ruff check --fix . && npm run lint:fix --workspace=frontend",
+    "typecheck": "npm run typecheck --workspace=frontend",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "concurrently": "^9.1.0",
+    "prettier": "^3.4.2"
+  }
+}

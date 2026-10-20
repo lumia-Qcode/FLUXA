@@ -1,0 +1,40 @@
+# Environment variables
+.env
+*.env
+!.env.example
+
+# Node dependencies and build output
+node_modules/
+*/node_modules/
+dist/
+*/dist/
+
+# Python cache and environments
+__pycache__/
+*/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*/.pytest_cache/
+venv/
+.venv/
+env/
+
+# SQLite databases & uploads
+instance/*.db
+instance/uploads/
+*.db
+*.sqlite3
+
+# Test artifacts and reports
+test-results/
+playwright-report/
+.coverage
+coverage/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

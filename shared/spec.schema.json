@@ -1,0 +1,3715 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FLUXA Presentation Specification",
+  "definitions": {
+    "Deck": {
+      "$defs": {
+        "Dataset": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            },
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "source": {
+              "enum": [
+                "user",
+                "import",
+                "ai-estimate"
+              ],
+              "title": "Source",
+              "type": "string"
+            },
+            "columns": {
+              "items": {
+                "$ref": "#/$defs/DatasetColumn"
+              },
+              "title": "Columns",
+              "type": "array"
+            },
+            "rows": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "title": "Rows",
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "source"
+          ],
+          "title": "Dataset",
+          "type": "object"
+        },
+        "DatasetColumn": {
+          "properties": {
+            "key": {
+              "minLength": 1,
+              "title": "Key",
+              "type": "string"
+            },
+            "label": {
+              "title": "Label",
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "text",
+                "number",
+                "date"
+              ],
+              "title": "Type",
+              "type": "string"
+            },
+            "expr": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Expr"
+            }
+          },
+          "required": [
+            "key",
+            "label",
+            "type"
+          ],
+          "title": "DatasetColumn",
+          "type": "object"
+        },
+        "DeckSettings": {
+          "properties": {
+            "transition": {
+              "$ref": "#/$defs/Transition"
+            },
+            "loop": {
+              "default": false,
+              "title": "Loop",
+              "type": "boolean"
+            }
+          },
+          "title": "DeckSettings",
+          "type": "object"
+        },
+        "Transition": {
+          "properties": {
+            "effect": {
+              "default": "fade",
+              "enum": [
+                "none",
+                "fade",
+                "push",
+                "zoom"
+              ],
+              "title": "Effect",
+              "type": "string"
+            },
+            "duration": {
+              "default": 300,
+              "minimum": 0,
+              "title": "Duration",
+              "type": "integer"
+            },
+            "direction": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "l",
+                    "r",
+                    "u",
+                    "d"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Direction"
+            }
+          },
+          "title": "Transition",
+          "type": "object"
+        },
+        "Variable": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            },
+            "label": {
+              "title": "Label",
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "number",
+                "boolean",
+                "choice"
+              ],
+              "title": "Type",
+              "type": "string"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "title": "Value"
+            },
+            "min": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Min"
+            },
+            "max": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Max"
+            },
+            "step": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Step"
+            },
+            "options": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Options"
+            },
+            "scope": {
+              "default": "deck",
+              "enum": [
+                "deck",
+                "slide"
+              ],
+              "title": "Scope",
+              "type": "string"
+            },
+            "resetOnEnter": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Resetonenter"
+            }
+          },
+          "required": [
+            "id",
+            "label",
+            "type",
+            "value"
+          ],
+          "title": "Variable",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "schemaVersion": {
+          "const": 1,
+          "default": 1,
+          "title": "Schemaversion",
+          "type": "integer"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "themeId": {
+          "default": "default",
+          "title": "Themeid",
+          "type": "string"
+        },
+        "themeOverrides": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Themeoverrides"
+        },
+        "datasets": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Dataset"
+          },
+          "title": "Datasets",
+          "type": "object"
+        },
+        "variables": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Variable"
+          },
+          "title": "Variables",
+          "type": "object"
+        },
+        "settings": {
+          "$ref": "#/$defs/DeckSettings"
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "title": "DeckModel",
+      "type": "object"
+    },
+    "Slide": {
+      "$defs": {
+        "AnimationStep": {
+          "properties": {
+            "effect": {
+              "enum": [
+                "fade",
+                "rise",
+                "slide",
+                "zoom",
+                "wipe",
+                "draw",
+                "countUp",
+                "exit"
+              ],
+              "title": "Effect",
+              "type": "string"
+            },
+            "trigger": {
+              "enum": [
+                "onEnter",
+                "onClick",
+                "afterPrev",
+                "withPrev"
+              ],
+              "title": "Trigger",
+              "type": "string"
+            },
+            "delay": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Delay"
+            },
+            "duration": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Duration"
+            },
+            "easing": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Easing"
+            },
+            "direction": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "l",
+                    "r",
+                    "u",
+                    "d"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Direction"
+            }
+          },
+          "required": [
+            "effect",
+            "trigger"
+          ],
+          "title": "AnimationStep",
+          "type": "object"
+        },
+        "BindExpression": {
+          "properties": {
+            "$bind": {
+              "minLength": 1,
+              "title": "$Bind",
+              "type": "string"
+            }
+          },
+          "required": [
+            "$bind"
+          ],
+          "title": "BindExpression",
+          "type": "object"
+        },
+        "ChartBlock": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            },
+            "x": {
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "title": "Y",
+              "type": "number"
+            },
+            "w": {
+              "exclusiveMinimum": 0,
+              "title": "W",
+              "type": "number"
+            },
+            "h": {
+              "exclusiveMinimum": 0,
+              "title": "H",
+              "type": "number"
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rotation"
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "title",
+                    "subtitle",
+                    "body",
+                    "media",
+                    "chart",
+                    "kpi",
+                    "aside",
+                    "footer"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Role"
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Name"
+            },
+            "locked": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Locked"
+            },
+            "hidden": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Hidden"
+            },
+            "alt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Alt"
+            },
+            "animation": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/$defs/AnimationStep"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Animation"
+            },
+            "type": {
+              "const": "chart",
+              "default": "chart",
+              "title": "Type",
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "bar",
+                "column",
+                "line",
+                "area",
+                "pie",
+                "donut",
+                "scatter",
+                "radar",
+                "stacked"
+              ],
+              "title": "Kind",
+              "type": "string"
+            },
+            "dataset": {
+              "minLength": 1,
+              "title": "Dataset",
+              "type": "string"
+            },
+            "xField": {
+              "default": "label",
+              "minLength": 1,
+              "title": "Xfield",
+              "type": "string"
+            },
+            "series": {
+              "items": {
+                "$ref": "#/$defs/ChartSeries"
+              },
+              "title": "Series",
+              "type": "array"
+            },
+            "options": {
+              "$ref": "#/$defs/ChartOptions"
+            }
+          },
+          "required": [
+            "id",
+            "x",
+            "y",
+            "w",
+            "h",
+            "kind",
+            "dataset"
+          ],
+          "title": "ChartBlock",
+          "type": "object"
+        },
+        "ChartOptions": {
+          "properties": {
+            "unit": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Unit"
+            },
+            "legend": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "auto",
+                    "off",
+                    "bottom"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Legend"
+            },
+            "valueLabels": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Valuelabels"
+            },
+            "min": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "$ref": "#/$defs/BindExpression"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Min"
+            },
+            "max": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "$ref": "#/$defs/BindExpression"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Max"
+            },
+            "animateMs": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Animatems"
+            }
+          },
+          "title": "ChartOptions",
+          "type": "object"
+        },
+        "ChartSeries": {
+          "properties": {
+            "field": {
+              "minLength": 1,
+              "title": "Field",
+              "type": "string"
+            },
+            "label": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Label"
+            },
+            "color": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Color"
+            }
+          },
+          "required": [
+            "field"
+          ],
+          "title": "ChartSeries",
+          "type": "object"
+        },
+        "ComparisonBlock": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            },
+            "x": {
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "title": "Y",
+              "type": "number"
+            },
+            "w": {
+              "exclusiveMinimum": 0,
+              "title": "W",
+              "type": "number"
+            },
+            "h": {
+              "exclusiveMinimum": 0,
+              "title": "H",
+              "type": "number"
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rotation"
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "title",
+                    "subtitle",
+                    "body",
+                    "media",
+                    "chart",
+                    "kpi",
+                    "aside",
+                    "footer"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Role"
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Name"
+            },
+            "locked": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Locked"
+            },
+            "hidden": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Hidden"
+            },
+            "alt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Alt"
+            },
+            "animation": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/$defs/AnimationStep"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Animation"
+            },
+            "type": {
+              "const": "comparison",
+              "default": "comparison",
+              "title": "Type",
+              "type": "string"
+            },
+            "columns": {
+              "items": {
+                "$ref": "#/$defs/ComparisonColumn"
+              },
+              "title": "Columns",
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "x",
+            "y",
+            "w",
+            "h"
+          ],
+          "title": "ComparisonBlock",
+          "type": "object"
+        },
+        "ComparisonColumn": {
+          "properties": {
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Items",
+              "type": "array"
+            }
+          },
+          "required": [
+            "title"
+          ],
+          "title": "ComparisonColumn",
+          "type": "object"
+        },
+        "ControlAction": {
+          "properties": {
+            "goToSlide": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Gotoslide"
+            },
+            "setVariable": {
+              "anyOf": [
+                {
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "string"
+                    },
+                    {}
+                  ],
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Setvariable"
+            },
+            "openUrl": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Openurl"
+            }
+          },
+          "title": "ControlAction",
+          "type": "object"
+        },
+        "ControlBlock": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            },
+            "x": {
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "title": "Y",
+              "type": "number"
+            },
+            "w": {
+              "exclusiveMinimum": 0,
+              "title": "W",
+              "type": "number"
+            },
+            "h": {
+              "exclusiveMinimum": 0,
+              "title": "H",
+              "type": "number"
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rotation"
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "title",
+                    "subtitle",
+                    "body",
+                    "media",
+                    "chart",
+                    "kpi",
+                    "aside",
+                    "footer"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Role"
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Name"
+            },
+            "locked": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Locked"
+            },
+            "hidden": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Hidden"
+            },
+            "alt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Alt"
+            },
+            "animation": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/$defs/AnimationStep"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Animation"
+            },
+            "type": {
+              "const": "control",
+              "default": "control",
+              "title": "Type",
+              "type": "string"
+            },
+            "control": {
+              "enum": [
+                "slider",
+                "toggle",
+                "select",
+                "segmented",
+                "button"
+              ],
+              "title": "Control",
+              "type": "string"
+            },
+            "variable": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Variable"
+            },
+            "label": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Label"
+            },
+            "min": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Min"
+            },
+            "max": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Max"
+            },
+            "step": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Step"
+            },
+            "options": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Options"
+            },
+            "action": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ControlAction"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "x",
+            "y",
+            "w",
+            "h",
+            "control"
+          ],
+          "title": "ControlBlock",
+          "type": "object"
+        },
+        "EmbedBlock": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            },
+            "x": {
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "title": "Y",
+              "type": "number"
+            },
+            "w": {
+              "exclusiveMinimum": 0,
+              "title": "W",
+              "type": "number"
+            },
+            "h": {
+              "exclusiveMinimum": 0,
+              "title": "H",
+              "type": "number"
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rotation"
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "title",
+                    "subtitle",
+                    "body",
+                    "media",
+                    "chart",
+                    "kpi",
+                    "aside",
+                    "footer"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Role"
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Name"
+            },
+            "locked": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Locked"
+            },
+            "hidden": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Hidden"
+            },
+            "alt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Alt"
+            },
+            "animation": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/$defs/AnimationStep"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Animation"
+            },
+            "type": {
+              "const": "embed",
+              "default": "embed",
+              "title": "Type",
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "video",
+                "url"
+              ],
+              "title": "Kind",
+              "type": "string"
+            },
+            "src": {
+              "minLength": 1,
+              "title": "Src",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "x",
+            "y",
+            "w",
+            "h",
+            "kind",
+            "src"
+          ],
+          "title": "EmbedBlock",
+          "type": "object"
+        },
+        "Fill": {
+          "properties": {
+            "color": {
+              "title": "Color",
+              "type": "string"
+            },
+            "opacity": {
+              "anyOf": [
+                {
+                  "maximum": 1.0,
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Opacity"
+            }
+          },
+          "required": [
+            "color"
+          ],
+          "title": "Fill",
+          "type": "object"
+        },
+        "HtmlBlock": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            },
+            "x": {
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "title": "Y",
+              "type": "number"
+            },
+            "w": {
+              "exclusiveMinimum": 0,
+              "title": "W",
+              "type": "number"
+            },
+            "h": {
+              "exclusiveMinimum": 0,
+              "title": "H",
+              "type": "number"
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rotation"
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "title",
+                    "subtitle",
+                    "body",
+                    "media",
+                    "chart",
+                    "kpi",
+                    "aside",
+                    "footer"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Role"
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Name"
+            },
+            "locked": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Locked"
+            },
+            "hidden": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Hidden"
+            },
+            "alt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Alt"
+            },
+            "animation": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/$defs/AnimationStep"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Animation"
+            },
+            "type": {
+              "const": "html",
+              "default": "html",
+              "title": "Type",
+              "type": "string"
+            },
+            "code": {
+              "$ref": "#/$defs/HtmlCode"
+            },
+            "snapshotAssetId": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Snapshotassetid"
+            }
+          },
+          "required": [
+            "id",
+            "x",
+            "y",
+            "w",
+            "h",
+            "code"
+          ],
+          "title": "HtmlBlock",
+          "type": "object"
+        },
+        "HtmlCode": {
+          "properties": {
+            "html": {
+              "title": "Html",
+              "type": "string"
+            },
+            "css": {
+              "title": "Css",
+              "type": "string"
+            },
+            "js": {
+              "title": "Js",
+              "type": "string"
+            }
+          },
+          "required": [
+            "html",
+            "css",
+            "js"
+          ],
+          "title": "HtmlCode",
+          "type": "object"
+        },
+        "IconBlock": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            },
+            "x": {
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "title": "Y",
+              "type": "number"
+            },
+            "w": {
+              "exclusiveMinimum": 0,
+              "title": "W",
+              "type": "number"
+            },
+            "h": {
+              "exclusiveMinimum": 0,
+              "title": "H",
+              "type": "number"
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rotation"
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "title",
+                    "subtitle",
+                    "body",
+                    "media",
+                    "chart",
+                    "kpi",
+                    "aside",
+                    "footer"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Role"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            },
+            "locked": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Locked"
+            },
+            "hidden": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Hidden"
+            },
+            "alt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Alt"
+            },
+            "animation": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/$defs/AnimationStep"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Animation"
+            },
+            "type": {
+              "const": "icon",
+              "default": "icon",
+              "title": "Type",
+              "type": "string"
+            },
+            "color": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Color"
+            }
+          },
+          "required": [
+            "id",
+            "x",
+            "y",
+            "w",
+            "h",
+            "name"
+          ],
+          "title": "IconBlock",
+          "type": "object"
+        },
+        "ImageBlock": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            },
+            "x": {
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "title": "Y",
+              "type": "number"
+            },
+            "w": {
+              "exclusiveMinimum": 0,
+              "title": "W",
+              "type": "number"
+            },
+            "h": {
+              "exclusiveMinimum": 0,
+              "title": "H",
+              "type": "number"
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rotation"
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "title",
+                    "subtitle",
+                    "body",
+                    "media",
+                    "chart",
+                    "kpi",
+                    "aside",
+                    "footer"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Role"
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Name"
+            },
+            "locked": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Locked"
+            },
+            "hidden": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Hidden"
+            },
+            "alt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Alt"
+            },
+            "animation": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/$defs/AnimationStep"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Animation"
+            },
+            "type": {
+              "const": "image",
+              "default": "image",
+              "title": "Type",
+              "type": "string"
+            },
+            "assetId": {
+              "minLength": 1,
+              "title": "Assetid",
+              "type": "string"
+            },
+            "fit": {
+              "default": "cover",
+              "enum": [
+                "cover",
+                "contain"
+              ],
+              "title": "Fit",
+              "type": "string"
+            },
+            "radius": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Radius"
+            }
+          },
+          "required": [
+            "id",
+            "x",
+            "y",
+            "w",
+            "h",
+            "assetId"
+          ],
+          "title": "ImageBlock",
+          "type": "object"
+        },
+        "KpiBlock": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            },
+            "x": {
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "title": "Y",
+              "type": "number"
+            },
+            "w": {
+              "exclusiveMinimum": 0,
+              "title": "W",
+              "type": "number"
+            },
+            "h": {
+              "exclusiveMinimum": 0,
+              "title": "H",
+              "type": "number"
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rotation"
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "title",
+                    "subtitle",
+                    "body",
+                    "media",
+                    "chart",
+                    "kpi",
+                    "aside",
+                    "footer"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Role"
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Name"
+            },
+            "locked": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Locked"
+            },
+            "hidden": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Hidden"
+            },
+            "alt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Alt"
+            },
+            "animation": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/$defs/AnimationStep"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Animation"
+            },
+            "type": {
+              "const": "kpi",
+              "default": "kpi",
+              "title": "Type",
+              "type": "string"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "$ref": "#/$defs/BindExpression"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "title": "Value"
+            },
+            "label": {
+              "title": "Label",
+              "type": "string"
+            },
+            "delta": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "$ref": "#/$defs/BindExpression"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Delta"
+            },
+            "format": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/NumFormat"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "countUp": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Countup"
+            }
+          },
+          "required": [
+            "id",
+            "x",
+            "y",
+            "w",
+            "h",
+            "value",
+            "label"
+          ],
+          "title": "KpiBlock",
+          "type": "object"
+        },
+        "NumFormat": {
+          "properties": {
+            "prefix": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Prefix"
+            },
+            "suffix": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Suffix"
+            },
+            "decimals": {
+              "anyOf": [
+                {
+                  "maximum": 10,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Decimals"
+            },
+            "compact": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Compact"
+            }
+          },
+          "title": "NumFormat",
+          "type": "object"
+        },
+        "QuoteBlock": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            },
+            "x": {
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "title": "Y",
+              "type": "number"
+            },
+            "w": {
+              "exclusiveMinimum": 0,
+              "title": "W",
+              "type": "number"
+            },
+            "h": {
+              "exclusiveMinimum": 0,
+              "title": "H",
+              "type": "number"
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rotation"
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "title",
+                    "subtitle",
+                    "body",
+                    "media",
+                    "chart",
+                    "kpi",
+                    "aside",
+                    "footer"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Role"
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Name"
+            },
+            "locked": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Locked"
+            },
+            "hidden": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Hidden"
+            },
+            "alt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Alt"
+            },
+            "animation": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/$defs/AnimationStep"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Animation"
+            },
+            "type": {
+              "const": "quote",
+              "default": "quote",
+              "title": "Type",
+              "type": "string"
+            },
+            "text": {
+              "title": "Text",
+              "type": "string"
+            },
+            "attribution": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Attribution"
+            }
+          },
+          "required": [
+            "id",
+            "x",
+            "y",
+            "w",
+            "h",
+            "text"
+          ],
+          "title": "QuoteBlock",
+          "type": "object"
+        },
+        "RichTextDoc": {
+          "properties": {
+            "type": {
+              "default": "doc",
+              "title": "Type",
+              "type": "string"
+            },
+            "content": {
+              "anyOf": [
+                {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Content"
+            }
+          },
+          "title": "RichTextDoc",
+          "type": "object"
+        },
+        "ShapeBlock": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            },
+            "x": {
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "title": "Y",
+              "type": "number"
+            },
+            "w": {
+              "exclusiveMinimum": 0,
+              "title": "W",
+              "type": "number"
+            },
+            "h": {
+              "exclusiveMinimum": 0,
+              "title": "H",
+              "type": "number"
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rotation"
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "title",
+                    "subtitle",
+                    "body",
+                    "media",
+                    "chart",
+                    "kpi",
+                    "aside",
+                    "footer"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Role"
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Name"
+            },
+            "locked": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Locked"
+            },
+            "hidden": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Hidden"
+            },
+            "alt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Alt"
+            },
+            "animation": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/$defs/AnimationStep"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Animation"
+            },
+            "type": {
+              "const": "shape",
+              "default": "shape",
+              "title": "Type",
+              "type": "string"
+            },
+            "shape": {
+              "enum": [
+                "rect",
+                "ellipse",
+                "line",
+                "arrow",
+                "triangle"
+              ],
+              "title": "Shape",
+              "type": "string"
+            },
+            "fill": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Fill"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "stroke": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Stroke"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "radius": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Radius"
+            }
+          },
+          "required": [
+            "id",
+            "x",
+            "y",
+            "w",
+            "h",
+            "shape"
+          ],
+          "title": "ShapeBlock",
+          "type": "object"
+        },
+        "StepItem": {
+          "properties": {
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "body": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Body"
+            },
+            "date": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Date"
+            }
+          },
+          "required": [
+            "title"
+          ],
+          "title": "StepItem",
+          "type": "object"
+        },
+        "StepsBlock": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            },
+            "x": {
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "title": "Y",
+              "type": "number"
+            },
+            "w": {
+              "exclusiveMinimum": 0,
+              "title": "W",
+              "type": "number"
+            },
+            "h": {
+              "exclusiveMinimum": 0,
+              "title": "H",
+              "type": "number"
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rotation"
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "title",
+                    "subtitle",
+                    "body",
+                    "media",
+                    "chart",
+                    "kpi",
+                    "aside",
+                    "footer"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Role"
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Name"
+            },
+            "locked": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Locked"
+            },
+            "hidden": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Hidden"
+            },
+            "alt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Alt"
+            },
+            "animation": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/$defs/AnimationStep"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Animation"
+            },
+            "type": {
+              "const": "steps",
+              "default": "steps",
+              "title": "Type",
+              "type": "string"
+            },
+            "items": {
+              "items": {
+                "$ref": "#/$defs/StepItem"
+              },
+              "title": "Items",
+              "type": "array"
+            },
+            "orientation": {
+              "default": "h",
+              "enum": [
+                "h",
+                "v"
+              ],
+              "title": "Orientation",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "x",
+            "y",
+            "w",
+            "h"
+          ],
+          "title": "StepsBlock",
+          "type": "object"
+        },
+        "Stroke": {
+          "properties": {
+            "color": {
+              "title": "Color",
+              "type": "string"
+            },
+            "width": {
+              "minimum": 0.0,
+              "title": "Width",
+              "type": "number"
+            },
+            "dash": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "solid",
+                    "dashed",
+                    "dotted"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Dash"
+            }
+          },
+          "required": [
+            "color",
+            "width"
+          ],
+          "title": "Stroke",
+          "type": "object"
+        },
+        "TabItem": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            },
+            "label": {
+              "title": "Label",
+              "type": "string"
+            },
+            "blocks": {
+              "items": {
+                "discriminator": {
+                  "mapping": {
+                    "chart": "#/$defs/ChartBlock",
+                    "comparison": "#/$defs/ComparisonBlock",
+                    "control": "#/$defs/ControlBlock",
+                    "embed": "#/$defs/EmbedBlock",
+                    "html": "#/$defs/HtmlBlock",
+                    "icon": "#/$defs/IconBlock",
+                    "image": "#/$defs/ImageBlock",
+                    "kpi": "#/$defs/KpiBlock",
+                    "quote": "#/$defs/QuoteBlock",
+                    "shape": "#/$defs/ShapeBlock",
+                    "steps": "#/$defs/StepsBlock",
+                    "table": "#/$defs/TableBlock",
+                    "tabs": "#/$defs/TabsBlock",
+                    "text": "#/$defs/TextBlock",
+                    "timeline": "#/$defs/TimelineBlock"
+                  },
+                  "propertyName": "type"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/TextBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/ShapeBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/ImageBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/IconBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/ChartBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/KpiBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/TableBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/StepsBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/TimelineBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/ComparisonBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/QuoteBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/ControlBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/EmbedBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/HtmlBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/TabsBlock"
+                  }
+                ]
+              },
+              "title": "Blocks",
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "label"
+          ],
+          "title": "TabItem",
+          "type": "object"
+        },
+        "TableBlock": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            },
+            "x": {
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "title": "Y",
+              "type": "number"
+            },
+            "w": {
+              "exclusiveMinimum": 0,
+              "title": "W",
+              "type": "number"
+            },
+            "h": {
+              "exclusiveMinimum": 0,
+              "title": "H",
+              "type": "number"
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rotation"
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "title",
+                    "subtitle",
+                    "body",
+                    "media",
+                    "chart",
+                    "kpi",
+                    "aside",
+                    "footer"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Role"
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Name"
+            },
+            "locked": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Locked"
+            },
+            "hidden": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Hidden"
+            },
+            "alt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Alt"
+            },
+            "animation": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/$defs/AnimationStep"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Animation"
+            },
+            "type": {
+              "const": "table",
+              "default": "table",
+              "title": "Type",
+              "type": "string"
+            },
+            "dataset": {
+              "minLength": 1,
+              "title": "Dataset",
+              "type": "string"
+            },
+            "columns": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Columns"
+            },
+            "style": {
+              "default": "plain",
+              "enum": [
+                "plain",
+                "striped",
+                "ruled"
+              ],
+              "title": "Style",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "x",
+            "y",
+            "w",
+            "h",
+            "dataset"
+          ],
+          "title": "TableBlock",
+          "type": "object"
+        },
+        "TabsBlock": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            },
+            "x": {
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "title": "Y",
+              "type": "number"
+            },
+            "w": {
+              "exclusiveMinimum": 0,
+              "title": "W",
+              "type": "number"
+            },
+            "h": {
+              "exclusiveMinimum": 0,
+              "title": "H",
+              "type": "number"
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rotation"
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "title",
+                    "subtitle",
+                    "body",
+                    "media",
+                    "chart",
+                    "kpi",
+                    "aside",
+                    "footer"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Role"
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Name"
+            },
+            "locked": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Locked"
+            },
+            "hidden": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Hidden"
+            },
+            "alt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Alt"
+            },
+            "animation": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/$defs/AnimationStep"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Animation"
+            },
+            "type": {
+              "const": "tabs",
+              "default": "tabs",
+              "title": "Type",
+              "type": "string"
+            },
+            "tabs": {
+              "items": {
+                "$ref": "#/$defs/TabItem"
+              },
+              "title": "Tabs",
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "x",
+            "y",
+            "w",
+            "h"
+          ],
+          "title": "TabsBlock",
+          "type": "object"
+        },
+        "TextBlock": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            },
+            "x": {
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "title": "Y",
+              "type": "number"
+            },
+            "w": {
+              "exclusiveMinimum": 0,
+              "title": "W",
+              "type": "number"
+            },
+            "h": {
+              "exclusiveMinimum": 0,
+              "title": "H",
+              "type": "number"
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rotation"
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "title",
+                    "subtitle",
+                    "body",
+                    "media",
+                    "chart",
+                    "kpi",
+                    "aside",
+                    "footer"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Role"
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Name"
+            },
+            "locked": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Locked"
+            },
+            "hidden": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Hidden"
+            },
+            "alt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Alt"
+            },
+            "animation": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/$defs/AnimationStep"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Animation"
+            },
+            "type": {
+              "const": "text",
+              "default": "text",
+              "title": "Type",
+              "type": "string"
+            },
+            "doc": {
+              "$ref": "#/$defs/RichTextDoc"
+            },
+            "style": {
+              "$ref": "#/$defs/TextStyle"
+            }
+          },
+          "required": [
+            "id",
+            "x",
+            "y",
+            "w",
+            "h"
+          ],
+          "title": "TextBlock",
+          "type": "object"
+        },
+        "TextStyle": {
+          "properties": {
+            "fontSize": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Fontsize"
+            },
+            "fontWeight": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Fontweight"
+            },
+            "color": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Color"
+            },
+            "align": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "left",
+                    "center",
+                    "right",
+                    "justify"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Align"
+            },
+            "lineHeight": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Lineheight"
+            },
+            "letterSpacing": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Letterspacing"
+            }
+          },
+          "title": "TextStyle",
+          "type": "object"
+        },
+        "TimelineBlock": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            },
+            "x": {
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "title": "Y",
+              "type": "number"
+            },
+            "w": {
+              "exclusiveMinimum": 0,
+              "title": "W",
+              "type": "number"
+            },
+            "h": {
+              "exclusiveMinimum": 0,
+              "title": "H",
+              "type": "number"
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rotation"
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "title",
+                    "subtitle",
+                    "body",
+                    "media",
+                    "chart",
+                    "kpi",
+                    "aside",
+                    "footer"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Role"
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Name"
+            },
+            "locked": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Locked"
+            },
+            "hidden": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Hidden"
+            },
+            "alt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Alt"
+            },
+            "animation": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/$defs/AnimationStep"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Animation"
+            },
+            "type": {
+              "const": "timeline",
+              "default": "timeline",
+              "title": "Type",
+              "type": "string"
+            },
+            "items": {
+              "items": {
+                "$ref": "#/$defs/StepItem"
+              },
+              "title": "Items",
+              "type": "array"
+            },
+            "orientation": {
+              "default": "h",
+              "enum": [
+                "h",
+                "v"
+              ],
+              "title": "Orientation",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "x",
+            "y",
+            "w",
+            "h"
+          ],
+          "title": "TimelineBlock",
+          "type": "object"
+        },
+        "Transition": {
+          "properties": {
+            "effect": {
+              "default": "fade",
+              "enum": [
+                "none",
+                "fade",
+                "push",
+                "zoom"
+              ],
+              "title": "Effect",
+              "type": "string"
+            },
+            "duration": {
+              "default": 300,
+              "minimum": 0,
+              "title": "Duration",
+              "type": "integer"
+            },
+            "direction": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "l",
+                    "r",
+                    "u",
+                    "d"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Direction"
+            }
+          },
+          "title": "Transition",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "order": {
+          "minimum": 0,
+          "title": "Order",
+          "type": "integer"
+        },
+        "layout": {
+          "anyOf": [
+            {
+              "enum": [
+                "title",
+                "section",
+                "bullets",
+                "two-column",
+                "big-number",
+                "chart-text",
+                "image-text",
+                "quote",
+                "timeline",
+                "comparison",
+                "full-bleed",
+                "blank"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Layout"
+        },
+        "background": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Fill"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notes": {
+          "default": "",
+          "title": "Notes",
+          "type": "string"
+        },
+        "hidden": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hidden"
+        },
+        "transition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Transition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "blocks": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "chart": "#/$defs/ChartBlock",
+                "comparison": "#/$defs/ComparisonBlock",
+                "control": "#/$defs/ControlBlock",
+                "embed": "#/$defs/EmbedBlock",
+                "html": "#/$defs/HtmlBlock",
+                "icon": "#/$defs/IconBlock",
+                "image": "#/$defs/ImageBlock",
+                "kpi": "#/$defs/KpiBlock",
+                "quote": "#/$defs/QuoteBlock",
+                "shape": "#/$defs/ShapeBlock",
+                "steps": "#/$defs/StepsBlock",
+                "table": "#/$defs/TableBlock",
+                "tabs": "#/$defs/TabsBlock",
+                "text": "#/$defs/TextBlock",
+                "timeline": "#/$defs/TimelineBlock"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/TextBlock"
+              },
+              {
+                "$ref": "#/$defs/ShapeBlock"
+              },
+              {
+                "$ref": "#/$defs/ImageBlock"
+              },
+              {
+                "$ref": "#/$defs/IconBlock"
+              },
+              {
+                "$ref": "#/$defs/ChartBlock"
+              },
+              {
+                "$ref": "#/$defs/KpiBlock"
+              },
+              {
+                "$ref": "#/$defs/TableBlock"
+              },
+              {
+                "$ref": "#/$defs/StepsBlock"
+              },
+              {
+                "$ref": "#/$defs/TimelineBlock"
+              },
+              {
+                "$ref": "#/$defs/ComparisonBlock"
+              },
+              {
+                "$ref": "#/$defs/QuoteBlock"
+              },
+              {
+                "$ref": "#/$defs/ControlBlock"
+              },
+              {
+                "$ref": "#/$defs/EmbedBlock"
+              },
+              {
+                "$ref": "#/$defs/HtmlBlock"
+              },
+              {
+                "$ref": "#/$defs/TabsBlock"
+              }
+            ]
+          },
+          "title": "Blocks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "order"
+      ],
+      "title": "SlideModel",
+      "type": "object"
+    }
+  }
+}
