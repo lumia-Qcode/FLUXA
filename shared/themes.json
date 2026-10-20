@@ -1,0 +1,222 @@
+[
+  {
+    "id": "clean-light",
+    "name": "Clean Light",
+    "fonts": {
+      "heading": "IBM Plex Sans",
+      "body": "IBM Plex Sans",
+      "mono": "IBM Plex Mono"
+    },
+    "colors": {
+      "bg": "#FFFFFF",
+      "text": "#111827",
+      "primary": "#2563EB",
+      "secondary": "#4B5563",
+      "accent": "#D97706",
+      "muted": "#9CA3AF",
+      "chart": ["#1D4ED8", "#047857", "#B45309", "#7C3AED", "#BE185D", "#0369A1"]
+    },
+    "titleStyle": { "size": 54, "weight": 600, "align": "left" },
+    "margins": { "top": 80, "right": 100, "bottom": 80, "left": 100 },
+    "backgroundTreatment": "flat",
+    "pptxFallbackFont": "Calibri"
+  },
+  {
+    "id": "midnight",
+    "name": "Midnight",
+    "fonts": {
+      "heading": "Archivo",
+      "body": "IBM Plex Sans",
+      "mono": "IBM Plex Mono"
+    },
+    "colors": {
+      "bg": "#0B1120",
+      "text": "#F8FAFC",
+      "primary": "#38BDF8",
+      "secondary": "#94A3B8",
+      "accent": "#F43F5E",
+      "muted": "#475569",
+      "chart": ["#38BDF8", "#818CF8", "#34D399", "#FBBF24", "#F472B6", "#2DD4BF"]
+    },
+    "titleStyle": { "size": 56, "weight": 700, "align": "left" },
+    "margins": { "top": 80, "right": 100, "bottom": 80, "left": 100 },
+    "backgroundTreatment": "flat",
+    "pptxFallbackFont": "Segoe UI"
+  },
+  {
+    "id": "editorial",
+    "name": "Editorial Serif",
+    "fonts": {
+      "heading": "Source Serif 4",
+      "body": "Literata",
+      "mono": "IBM Plex Mono"
+    },
+    "colors": {
+      "bg": "#FDFBF7",
+      "text": "#262320",
+      "primary": "#8B4513",
+      "secondary": "#5C554E",
+      "accent": "#A0522D",
+      "muted": "#8C827A",
+      "chart": ["#8B4513", "#2E6B56", "#734F96", "#A64B2A", "#2E5B82", "#556B2F"]
+    },
+    "titleStyle": { "size": 52, "weight": 600, "align": "center" },
+    "margins": { "top": 90, "right": 120, "bottom": 90, "left": 120 },
+    "backgroundTreatment": "flat",
+    "pptxFallbackFont": "Georgia"
+  },
+  {
+    "id": "bold-poster",
+    "name": "Bold Poster",
+    "fonts": {
+      "heading": "Red Hat Display",
+      "body": "Work Sans",
+      "mono": "IBM Plex Mono"
+    },
+    "colors": {
+      "bg": "#0F172A",
+      "text": "#F1F5F9",
+      "primary": "#E11D48",
+      "secondary": "#CBD5E1",
+      "accent": "#F59E0B",
+      "muted": "#64748B",
+      "chart": ["#FB7185", "#38BDF8", "#FBBF24", "#4ADE80", "#A78BFA", "#22D3EE"]
+    },
+    "titleStyle": { "size": 64, "weight": 800, "align": "left" },
+    "margins": { "top": 70, "right": 90, "bottom": 70, "left": 90 },
+    "backgroundTreatment": "flat",
+    "pptxFallbackFont": "Arial Black"
+  },
+  {
+    "id": "lavender-soft",
+    "name": "Lavender Soft",
+    "fonts": {
+      "heading": "Work Sans",
+      "body": "Public Sans",
+      "mono": "IBM Plex Mono"
+    },
+    "colors": {
+      "bg": "#F7F5FC",
+      "text": "#282338",
+      "primary": "#6D28D9",
+      "secondary": "#585068",
+      "accent": "#BE185D",
+      "muted": "#9288A5",
+      "chart": ["#6D28D9", "#047857", "#BE185D", "#B45309", "#1D4ED8", "#4338CA"]
+    },
+    "titleStyle": { "size": 50, "weight": 600, "align": "left" },
+    "margins": { "top": 80, "right": 100, "bottom": 80, "left": 100 },
+    "backgroundTreatment": "flat",
+    "pptxFallbackFont": "Century Gothic"
+  },
+  {
+    "id": "corporate-navy",
+    "name": "Corporate Navy",
+    "fonts": {
+      "heading": "Public Sans",
+      "body": "IBM Plex Sans",
+      "mono": "IBM Plex Mono"
+    },
+    "colors": {
+      "bg": "#F8FAFC",
+      "text": "#0F172A",
+      "primary": "#0369A1",
+      "secondary": "#334155",
+      "accent": "#0D9488",
+      "muted": "#64748B",
+      "chart": ["#0369A1", "#0F766E", "#4338CA", "#C2410C", "#1E3A8A", "#047857"]
+    },
+    "titleStyle": { "size": 52, "weight": 600, "align": "left" },
+    "margins": { "top": 80, "right": 100, "bottom": 80, "left": 100 },
+    "backgroundTreatment": "flat",
+    "pptxFallbackFont": "Arial"
+  },
+  {
+    "id": "high-contrast",
+    "name": "High Contrast (A11y)",
+    "fonts": {
+      "heading": "Atkinson Hyperlegible",
+      "body": "Atkinson Hyperlegible",
+      "mono": "IBM Plex Mono"
+    },
+    "colors": {
+      "bg": "#000000",
+      "text": "#FFFFFF",
+      "primary": "#FFE500",
+      "secondary": "#E0E0E0",
+      "accent": "#00E5FF",
+      "muted": "#A0A0A0",
+      "chart": ["#FFE500", "#00E5FF", "#39FF14", "#FF4081", "#E040FB", "#FF9100"]
+    },
+    "titleStyle": { "size": 56, "weight": 700, "align": "left" },
+    "margins": { "top": 80, "right": 100, "bottom": 80, "left": 100 },
+    "backgroundTreatment": "flat",
+    "pptxFallbackFont": "Verdana"
+  },
+  {
+    "id": "terminal-mono",
+    "name": "Terminal Mono",
+    "fonts": {
+      "heading": "IBM Plex Mono",
+      "body": "IBM Plex Mono",
+      "mono": "IBM Plex Mono"
+    },
+    "colors": {
+      "bg": "#0D1117",
+      "text": "#58A6FF",
+      "primary": "#3FB950",
+      "secondary": "#8B949E",
+      "accent": "#D29922",
+      "muted": "#484F58",
+      "chart": ["#58A6FF", "#3FB950", "#D29922", "#F85149", "#BC8CFF", "#39C5CF"]
+    },
+    "titleStyle": { "size": 48, "weight": 600, "align": "left" },
+    "margins": { "top": 80, "right": 90, "bottom": 80, "left": 90 },
+    "backgroundTreatment": "subtle-texture",
+    "pptxFallbackFont": "Consolas"
+  },
+  {
+    "id": "warm-sand",
+    "name": "Warm Sandstone",
+    "fonts": {
+      "heading": "Literata",
+      "body": "Source Serif 4",
+      "mono": "IBM Plex Mono"
+    },
+    "colors": {
+      "bg": "#FBF8F3",
+      "text": "#2D2820",
+      "primary": "#9A5B00",
+      "secondary": "#5C5243",
+      "accent": "#B45309",
+      "muted": "#8E8272",
+      "chart": ["#9A5B00", "#2C5E4F", "#7E3B5D", "#3B5998", "#8C4325", "#4A602B"]
+    },
+    "titleStyle": { "size": 54, "weight": 600, "align": "center" },
+    "margins": { "top": 90, "right": 110, "bottom": 90, "left": 110 },
+    "backgroundTreatment": "flat",
+    "pptxFallbackFont": "Palatino Linotype"
+  },
+  {
+    "id": "naskh-urdu",
+    "name": "Naskh Urdu & Persian",
+    "fonts": {
+      "heading": "Noto Naskh Arabic",
+      "body": "IBM Plex Sans",
+      "mono": "IBM Plex Mono"
+    },
+    "colors": {
+      "bg": "#08201B",
+      "text": "#F0FDF4",
+      "primary": "#34D399",
+      "secondary": "#99F6E4",
+      "accent": "#F472B6",
+      "muted": "#2D6A5D",
+      "chart": ["#34D399", "#F472B6", "#FBBF24", "#38BDF8", "#A78BFA", "#6EE7B7"]
+    },
+    "titleStyle": { "size": 58, "weight": 700, "align": "right" },
+    "margins": { "top": 80, "right": 100, "bottom": 80, "left": 100 },
+    "backgroundTreatment": "flat",
+    "pptxFallbackFont": "Arial"
+  }
+]

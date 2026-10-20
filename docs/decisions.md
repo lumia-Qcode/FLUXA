@@ -23,3 +23,6 @@ This log tracks architectural decisions and external package additions. Format: 
 - `eslint-plugin-react` (v7.37.2) & `eslint-plugin-react-hooks` (v5.0.0): ESLint rules for React best practices; MIT.
 - `zod` (v3.23.8): TypeScript-first schema declaration and validation for presentation spec; MIT.
 - `typescript-eslint` (v8.15.0): Tooling for ESLint to support TypeScript; MIT.
+- `chart.js` (v4.4.7): Canvas-based reactive charts with native animated data tweens; MIT.
+- `react-chartjs-2` (v5.3.0): React 18 component wrapper for Chart.js 4; MIT.
+- `lucide-react` (v0.468.0): Geometric, consistent 16px vector icon suite; ISC.

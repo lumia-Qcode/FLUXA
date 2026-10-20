@@ -4,6 +4,8 @@ import Layout from "./components/Layout.jsx";
 import Home from "./pages/Home.jsx";
 import CreatePresentation from "./pages/CreatePresentation.jsx";
 import EditorPage from "./pages/EditorPage.jsx";
+import { ShareViewer } from "./pages/ShareViewer";
+import { PrintRoute } from "./pages/PrintRoute";
 
 function NotFound() {
   return (
@@ -19,6 +21,11 @@ export default function App() {
   return (
     <PresentationsProvider>
       <Routes>
+        {/* Full-bleed viewer & print routes outside application chrome */}
+        <Route path="v/:id" element={<ShareViewer />} />
+        <Route path="print/:id" element={<PrintRoute />} />
+
+        {/* Application chrome layout */}
         <Route element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="create" element={<CreatePresentation />} />

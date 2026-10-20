@@ -4,6 +4,8 @@ import { api } from "../api.js";
 import { usePresentations } from "../PresentationsContext.jsx";
 import ConfirmButton from "../components/ConfirmButton.jsx";
 import SlidePreview from "../components/SlidePreview.jsx";
+import { PresentMode } from "../rendering/PresentMode";
+import { getTheme } from "../rendering/themes";
 
 const THEMES = [
   ["midnight", "Midnight Cyber"],
@@ -128,17 +130,10 @@ export default function EditorPage() {
   const goPrev = () => hasPrev && setSelectedId(slides[index - 1].id);
   const goNext = () => hasNext && setSelectedId(slides[index + 1].id);
 
-  // Keyboard navigation for editor and slideshow
+  // Keyboard navigation for editor (slideshow handles its own keyboard navigation)
   useEffect(() => {
     function onKey(e) {
-      if (presenting) {
-        if (e.key === "ArrowLeft" && index > 0) setSelectedId(slides[index - 1].id);
-        if (e.key === "ArrowRight" && index >= 0 && index < slides.length - 1) {
-          setSelectedId(slides[index + 1].id);
-        }
-        if (e.key === "Escape") setPresenting(false);
-        return;
-      }
+      if (presenting) return;
 
       const tag = e.target.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
@@ -756,61 +751,45 @@ export default function EditorPage() {
         )}
       </div>
 
-      {/* Fullscreen Slideshow Presenter Modal */}
-      {presenting && selected && (
-        <div className="slideshow-overlay" role="dialog" aria-modal="true" aria-label="Presentation Slideshow">
-          <div className="slideshow-header">
-            <span className="slideshow-title">{presentation.title}</span>
-            <div className="slideshow-controls">
-              <span className="slideshow-counter">
-                {index + 1} / {slides.length}
-              </span>
-              <button
-                type="button"
-                className="btn btn-sm btn-outline close-present-btn"
-                onClick={() => setPresenting(false)}
-              >
-                ✕ Exit (Esc)
-              </button>
-            </div>
-          </div>
-
-          <div className="slideshow-stage">
-            <SlidePreview
-              title={current.title}
-              content={current.content}
-              slideNumber={index + 1}
-              totalSlides={slides.length}
-              theme={design.theme}
-              layout={layout}
-            />
-          </div>
-
-          <div className="slideshow-footer">
-            <button
-              type="button"
-              className="btn btn-slideshow-nav"
-              onClick={goPrev}
-              disabled={!hasPrev}
-            >
-              ◀ Prev
-            </button>
-            <div className="slideshow-progress">
-              <div
-                className="slideshow-progress-bar"
-                style={{ width: `${((index + 1) / slides.length) * 100}%` }}
-              />
-            </div>
-            <button
-              type="button"
-              className="btn btn-slideshow-nav"
-              onClick={goNext}
-              disabled={!hasNext}
-            >
-              Next ▶
-            </button>
-          </div>
-        </div>
+      {/* Fullscreen Present Mode Portal */}
+      {presenting && (
+        <PresentMode
+          slides={slides.map((s) => {
+            if (s.id === selected?.id && current) {
+              return {
+                ...s,
+                title: current.title,
+                content: current.content,
+                spec: s.spec
+                  ? {
+                      ...s.spec,
+                      blocks: (s.spec.blocks || []).map((b) =>
+                        b.role === "title"
+                          ? {
+                              ...b,
+                              doc: {
+                                type: "doc",
+                                content: [
+                                  {
+                                    type: "paragraph",
+                                    content: [{ type: "text", text: current.title }],
+                                  },
+                                ],
+                              },
+                            }
+                          : b
+                      ),
+                    }
+                  : undefined,
+              };
+            }
+            return s;
+          })}
+          initialSlideIndex={index >= 0 ? index : 0}
+          theme={getTheme(presentation.theme?.themeId || design.theme)}
+          datasets={presentation.datasets}
+          onClose={() => setPresenting(false)}
+        />
       )}
     </div>
   );
