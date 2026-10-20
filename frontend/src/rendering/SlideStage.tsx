@@ -62,9 +62,12 @@ export const SlideStage: React.FC<SlideStageProps> = ({
 
     updateScale();
 
-    const ro = new ResizeObserver(updateScale);
-    ro.observe(container);
-    return () => ro.disconnect();
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(updateScale);
+      ro.observe(container);
+      return () => ro.disconnect();
+    }
+    return undefined;
   }, [mode]);
 
   // Normalize slide: could be pure Slide spec, DB slide with .spec, or legacy/draft slide

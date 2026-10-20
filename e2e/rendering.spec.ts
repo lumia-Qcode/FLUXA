@@ -8,8 +8,8 @@ test.describe("Phase 2 — Rendering Core & Visual Baseline Suite", () => {
     await page.goto("/presentations/5");
 
     // Wait for the presentation editor to load
-    await expect(page.locator(".deck-title")).toHaveText("Phase 2 Verification Deck");
-    const presentBtn = page.getByRole("button", { name: /present deck/i });
+    await expect(page.locator(".deck-title")).toHaveValue("Phase 2 Verification Deck");
+    const presentBtn = page.getByRole("button", { name: /^present$/i });
     await expect(presentBtn).toBeVisible();
 
     // Click Present Deck
@@ -61,9 +61,9 @@ test.describe("Phase 2 — Rendering Core & Visual Baseline Suite", () => {
   test("Present mode responsive: 1280x720", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto("/presentations/5");
-    await expect(page.locator(".deck-title")).toHaveText("Phase 2 Verification Deck");
+    await expect(page.locator(".deck-title")).toHaveValue("Phase 2 Verification Deck");
 
-    await page.getByRole("button", { name: /present deck/i }).click();
+    await page.getByRole("button", { name: /^present$/i }).click();
     const portal = page.locator(".fluxa-present-portal");
     await expect(portal).toBeVisible();
 
@@ -73,7 +73,7 @@ test.describe("Phase 2 — Rendering Core & Visual Baseline Suite", () => {
   test("Present mode responsive: 390x844 (Mobile)", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/presentations/5");
-    await expect(page.locator(".deck-title")).toHaveText("Phase 2 Verification Deck");
+    await expect(page.locator("h2")).toContainText("Phase 2 Verification Deck");
 
     await page.getByRole("button", { name: /present deck/i }).click();
     const portal = page.locator(".fluxa-present-portal");

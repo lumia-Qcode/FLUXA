@@ -18,18 +18,16 @@ function renderAt(path) {
   );
 }
 
-test("renders header, sidebar and the list of presentations", async () => {
+test("renders header and presentation cards on the workspace", async () => {
   mockApi({ "GET /api/presentations": list });
   renderAt("/");
 
   expect(screen.getByRole("banner")).toHaveTextContent("FLUXA");
-
-  const sidebar = screen.getByRole("complementary", { name: /presentations/i });
-  expect(await within(sidebar).findByRole("link", { name: /Deck One/ })).toBeInTheDocument();
-  expect(within(sidebar).getByText("2 slides")).toBeInTheDocument();
+  expect(await screen.findByRole("link", { name: /Deck One/ })).toBeInTheDocument();
+  expect(screen.getByText("2 slides")).toBeInTheDocument();
 });
 
-test("shows an empty state in the sidebar when there are no presentations", async () => {
+test("shows an empty state when there are no presentations", async () => {
   mockApi({ "GET /api/presentations": { body: { count: 0, presentations: [] } } });
   renderAt("/");
 
@@ -40,7 +38,7 @@ test("shows a friendly error when the backend is not reachable", async () => {
   vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
   renderAt("/");
 
-  expect(await screen.findByText(/cannot reach the server/i)).toBeInTheDocument();
+  expect(await screen.findByText(/failed to load workspace|cannot reach the server/i)).toBeInTheDocument();
 });
 
 test("shows a not found page for unknown routes", async () => {

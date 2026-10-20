@@ -55,7 +55,7 @@ test("creates the presentation, adds a title slide and opens the editor", async 
   await userEvent.type(screen.getByLabelText(/topic or prompt/i), "AI basics");
   await userEvent.click(screen.getByRole("button", { name: /create presentation/i }));
 
-  expect(await screen.findByRole("heading", { level: 1, name: "AI basics" })).toBeInTheDocument();
+  expect(await screen.findByDisplayValue("AI basics")).toBeInTheDocument();
 
   const create = calls.find((c) => c.method === "POST" && c.url === "/api/presentations");
   expect(create.body).toEqual({ title: "AI basics", description: "AI basics" });

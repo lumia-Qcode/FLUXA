@@ -124,6 +124,27 @@ def list_presentations():
             ORDER BY p.created_at DESC, p.id DESC
             """
         ).fetchall()
+
+        first_slides = {}
+        slide_rows = connection.execute(
+            """
+            SELECT s.presentation_id, s.id, s.title, s.content, s.spec
+            FROM slides s
+            INNER JOIN (
+                SELECT presentation_id, MIN(slide_order) as min_order
+                FROM slides
+                GROUP BY presentation_id
+            ) m ON s.presentation_id = m.presentation_id AND s.slide_order = m.min_order
+            """
+        ).fetchall()
+        for s in slide_rows:
+            if s["presentation_id"] not in first_slides:
+                first_slides[s["presentation_id"]] = {
+                    "id": s["id"],
+                    "title": s["title"],
+                    "content": s["content"],
+                    "spec": parse_json_safely(s["spec"], None),
+                }
     finally:
         connection.close()
 
@@ -143,6 +164,7 @@ def list_presentations():
             revision=row["revision"] or 1,
         ).to_dict()
         item["slide_count"] = row["slide_count"]
+        item["first_slide"] = first_slides.get(row["id"])
         presentations.append(item)
 
     return {"count": len(presentations), "presentations": presentations}, 200
@@ -352,3 +374,53 @@ def delete_presentation(presentation_id):
         connection.close()
 
     return {"message": "Presentation deleted successfully"}, 200
+
+
+@presentation_bp.post("/<int:presentation_id>/duplicate")
+def duplicate_presentation(presentation_id):
+    connection = get_connection(current_app.config["DATABASE_PATH"])
+    try:
+        row = connection.execute(
+            """
+            SELECT id, title, description, theme, datasets, variables, settings, schema_version
+            FROM presentations WHERE id = ?
+            """,
+            (presentation_id,),
+        ).fetchone()
+        if row is None:
+            return {"error": "Presentation not found."}, 404
+
+        cur = connection.execute(
+            """
+            INSERT INTO presentations (title, description, theme, datasets, variables, settings, schema_version, revision)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+            """,
+            (
+                f"{row['title']} (Copy)",
+                row["description"],
+                row["theme"],
+                row["datasets"],
+                row["variables"],
+                row["settings"],
+                row["schema_version"] or 1,
+            ),
+        )
+        new_id = cur.lastrowid
+
+        slides = connection.execute(
+            "SELECT slide_order, title, content, spec FROM slides WHERE presentation_id = ? ORDER BY slide_order ASC",
+            (presentation_id,),
+        ).fetchall()
+
+        for s in slides:
+            connection.execute(
+                "INSERT INTO slides (presentation_id, slide_order, title, content, spec) VALUES (?, ?, ?, ?, ?)",
+                (new_id, s["slide_order"], s["title"], s["content"], s["spec"]),
+            )
+
+        connection.commit()
+    finally:
+        connection.close()
+
+    return {"message": "Presentation duplicated", "id": new_id}, 201
+

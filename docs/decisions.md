@@ -26,3 +26,8 @@ This log tracks architectural decisions and external package additions. Format: 
 - `chart.js` (v4.4.7): Canvas-based reactive charts with native animated data tweens; MIT.
 - `react-chartjs-2` (v5.3.0): React 18 component wrapper for Chart.js 4; MIT.
 - `lucide-react` (v0.468.0): Geometric, consistent 16px vector icon suite; ISC.
+- `immer` (v10.1.1): Immutable document state updates and inverse patch tracking for undo/redo history; MIT.
+- `@tiptap/react` (v2.11.5): React renderer for Tiptap rich-text in-place editing; MIT.
+- `@tiptap/starter-kit` (v2.11.5): Core rich-text formatting extensions for in-place text editing; MIT.
+- `@tiptap/extension-underline` (v2.11.5): Underline text formatting support for Tiptap; MIT.
+- `idb-keyval` (v6.2.1): Minimal promise-based IndexedDB key-value store for offline draft persistence; Apache-2.0.
