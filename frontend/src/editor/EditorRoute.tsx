@@ -28,17 +28,18 @@ export const EditorRoute: React.FC = () => {
 
         // Normalize slides
         const normalizedSlides: Slide[] = (p.slides || []).map((s: any, idx: number) => {
+          const slideId = s.id ? `slide-${s.id}` : (s.spec?.id || `slide-${idx + 1}`);
           if (s.spec && s.spec.blocks) {
             return {
               ...s.spec,
-              id: s.spec.id || `slide-${s.id || idx + 1}`,
+              id: slideId,
               order: s.spec.order ?? s.slide_order ?? idx,
             };
           }
 
           // Fallback if slide has legacy title/content without spec
           return {
-            id: `slide-${s.id || idx + 1}`,
+            id: slideId,
             order: s.slide_order ?? idx,
             layout: "title",
             notes: "",

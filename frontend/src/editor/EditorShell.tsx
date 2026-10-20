@@ -80,8 +80,16 @@ export const EditorShell: React.FC = () => {
   // Global key bindings
   useEffect(() => {
     const handleGlobalKeys = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.isContentEditable ||
+        target?.closest?.(".ProseMirror") ||
+        target?.closest?.("[contenteditable='true']")
+      ) {
+        return;
+      }
 
       const isCtrl = e.ctrlKey || e.metaKey;
 

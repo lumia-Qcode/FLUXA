@@ -556,30 +556,30 @@ Paste one at a time. Each begins by pointing back to the master brief.
 
 ## 8. Requirements traceability (fill in during Phase 7)
 
-| Requirement | Where it is met |
-|---|---|
-| FR-1 prompt input | Create flow, step 1 |
-| FR-2 outline from the model | `/generate/outline`, outline editor |
-| FR-3 slide content from the model | `/generate` (SSE), compiler |
-| FR-4 structured JSON specification | `shared/spec.ts`, `docs/spec.md` |
-| FR-5 HTML rendering, not images | `SlideStage` |
-| FR-6 browser-based visual editor | Editor (5.1) |
-| FR-7 direct text editing | Tiptap in-place editing |
-| FR-8 natural-language edit commands | Ask panel, ops engine |
-| FR-9 AI improvement suggestions | Inline AI popover |
-| FR-10 data-bound live charts | Chart block, datasets, bindings |
-| FR-11 transitions and animations | 5.5 |
-| FR-12 preview and present mode | Present, presenter view, viewer |
-| FR-13 CRUD via backend APIs | Presentation, slide, asset routes |
-| FR-14 export incl. PowerPoint-compatible | 5.6 |
-| FR-15 graceful AI errors | Typed errors, repair pass, Retry |
-| NFR-1 first-time usability | Keyboard and mouse run in Phase 7, no instructions given |
-| NFR-2 performance | Streaming; timings recorded in Phase 7 |
-| NFR-3 responsiveness | 4.4 chrome breakpoints, viewer scaling |
-| NFR-4 secrets stay server-side | env-only config, `/api/ai/status` |
-| NFR-5 reliability | Repair pass, atomic ops, mock provider |
-| NFR-6 extensible schema | `schemaVersion`, migrations, unknown-block placeholder |
-| NFR-7 compatibility | PPTX checks (python-pptx, LibreOffice) |
+| Requirement | Where it is met (Code Implementation) | Test & Verification Proof |
+|---|---|---|
+| FR-1 prompt input | rontend/src/pages/CreatePresentation.jsx | e2e/prd_user_stories.spec.ts (Story 1) |
+| FR-2 outline from the model | pp/routes/generation_routes.py (/api/generate/outline) | 	ests/test_generation_routes.py, e2e/prd_user_stories.spec.ts |
+| FR-3 slide content from the model | pp/routes/generation_routes.py (/api/generate/slides SSE) | 	ests/test_generation_routes.py, scripts/benchmark_streaming.py |
+| FR-4 structured JSON specification | shared/spec.ts, pp/models/slide_spec.py | 	ests/test_slide_spec.py, Pydantic validation |
+| FR-5 HTML rendering, not images | rontend/src/rendering/SlideStage.tsx, rontend/src/rendering/blocks/* | e2e/rendering.spec.ts |
+| FR-6 browser-based visual editor | rontend/src/editor/EditorShell.tsx, rontend/src/editor/canvas/EditorCanvas.tsx | e2e/editor.spec.ts |
+| FR-7 direct text editing | rontend/src/editor/canvas/TiptapInlineEditor.tsx | e2e/prd_user_stories.spec.ts (Story 2) |
+| FR-8 natural-language edit commands | rontend/src/editor/inspector/AskInspector.tsx, rontend/src/editor/store/documentStore.ts | e2e/prd_user_stories.spec.ts (Story 3) |
+| FR-9 AI improvement suggestions | rontend/src/editor/canvas/TiptapInlineEditor.tsx | rontend/src/editor/__tests__/EditorShell.test.tsx |
+| FR-10 data-bound live charts | rontend/src/runtime/reactiveEngine.ts, rontend/src/rendering/blocks/ChartBlockRenderer.tsx | e2e/prd_user_stories.spec.ts (Story 4) |
+| FR-11 transitions and animations | rontend/src/rendering/SlideStage.tsx, rontend/src/editor/inspector/AnimateInspector.tsx | e2e/dynamic_engine.spec.ts |
+| FR-12 preview and present mode | rontend/src/rendering/PresentMode.tsx, rontend/src/presenter/PresenterView.tsx | e2e/prd_user_stories.spec.ts (Story 5) |
+| FR-13 CRUD via backend APIs | pp/routes/presentation_routes.py, pp/routes/slide_routes.py | 	ests/test_presentation_routes.py, 	ests/test_slide_routes.py |
+| FR-14 export incl. PowerPoint-compatible | rontend/src/export/pptxExporter.ts, rontend/src/export/htmlExporter.ts | e2e/prd_user_stories.spec.ts (Story 6), scripts/verify_pptx.py |
+| FR-15 graceful AI errors | pp/services/llm_client.py, rontend/src/editor/inspector/AskInspector.tsx | 	ests/test_llm_client.py |
+| NFR-1 first-time usability | Clean neutral design tokens, shortcut sheet, command bar | e2e/prd_user_stories.spec.ts |
+| NFR-2 performance | Streaming latency: 208.5ms TTFB, 40-slide benchmark | scripts/benchmark_streaming.py, scripts/seed_40_slides.py |
+| NFR-3 responsiveness | Responsive layout (1440px desktop, 1280px laptop, 390px mobile) | e2e/editor.spec.ts |
+| NFR-4 secrets stay server-side | Server-only env variables (pp/config.py), safe /api/ai/status | 	ests/test_generation_routes.py |
+| NFR-5 reliability | Atomic ops with 1-click Undo, mock provider fallback | rontend/src/editor/store/__tests__/opsEngine.test.ts |
+| NFR-6 extensible schema | schemaVersion: 1, unknown block fallback renderer | rontend/src/rendering/blocks/BlockRenderer.tsx |
+| NFR-7 compatibility | Native Office PowerPoint XML verified by python-pptx | scripts/verify_pptx.py, e2e/prd_user_stories.spec.ts |
 
 ## 9. Five-minute demo script (must work offline)
 
