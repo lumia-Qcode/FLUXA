@@ -59,7 +59,9 @@ def verify_themes(themes: list[dict]) -> tuple[bool, list[str]]:
         text_cr = contrast_ratio(text, bg)
         if text_cr < 4.5:
             all_ok = False
-            messages.append(f"FAIL: Theme '{tid}' text contrast is {text_cr:.2f}:1 (expected >= 4.5:1)")
+            messages.append(
+                f"FAIL: Theme '{tid}' text contrast is {text_cr:.2f}:1 (expected >= 4.5:1)"
+            )
         else:
             messages.append(f"OK: Theme '{tid}' text contrast is {text_cr:.2f}:1")
 
@@ -68,7 +70,9 @@ def verify_themes(themes: list[dict]) -> tuple[bool, list[str]]:
             c_cr = contrast_ratio(cc, bg)
             if c_cr < 3.0:
                 all_ok = False
-                messages.append(f"FAIL: Theme '{tid}' chart color {idx} ({cc}) contrast is {c_cr:.2f}:1 (expected >= 3.0:1)")
+                messages.append(
+                    f"FAIL: Theme '{tid}' chart color {idx} ({cc}) contrast is {c_cr:.2f}:1 (expected >= 3.0:1)"
+                )
             else:
                 messages.append(f"  OK: Chart[{idx}] {cc} is {c_cr:.2f}:1")
 

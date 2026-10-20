@@ -20,9 +20,7 @@ def _ensure_columns(connection, table_name, column_defs):
                     f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type} DEFAULT {default_val}"
                 )
             else:
-                connection.execute(
-                    f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"
-                )
+                connection.execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}")
 
 
 def init_db(database_path):
@@ -63,10 +61,14 @@ def init_db(database_path):
         connection,
         "presentations",
         [
-            ("theme", "TEXT", "'{\"themeId\":\"default\"}'"),
+            ("theme", "TEXT", '\'{"themeId":"default"}\''),
             ("datasets", "TEXT", "'{}'"),
             ("variables", "TEXT", "'{}'"),
-            ("settings", "TEXT", "'{\"transition\":{\"effect\":\"fade\",\"duration\":300},\"loop\":false}'"),
+            (
+                "settings",
+                "TEXT",
+                '\'{"transition":{"effect":"fade","duration":300},"loop":false}\'',
+            ),
             ("schema_version", "INTEGER", "1"),
             ("revision", "INTEGER", "1"),
         ],

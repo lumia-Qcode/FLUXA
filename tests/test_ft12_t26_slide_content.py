@@ -27,9 +27,7 @@ def test_content_prompt_requires_outline():
 
 
 def test_generate_slide_content(monkeypatch):
-    monkeypatch.setattr(
-        prompt_service, "generate_ai_response", fake_ai([content_json(2)])
-    )
+    monkeypatch.setattr(prompt_service, "generate_ai_response", fake_ai([content_json(2)]))
 
     slides = slide_content_service.generate_slide_content("AI", OUTLINE)
 
@@ -38,9 +36,7 @@ def test_generate_slide_content(monkeypatch):
 
 
 def test_generate_slide_content_count_mismatch(monkeypatch):
-    monkeypatch.setattr(
-        prompt_service, "generate_ai_response", fake_ai([content_json(1)])
-    )
+    monkeypatch.setattr(prompt_service, "generate_ai_response", fake_ai([content_json(1)]))
 
     with pytest.raises(AIResponseError):
         slide_content_service.generate_slide_content("AI", OUTLINE)

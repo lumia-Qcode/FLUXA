@@ -14,23 +14,30 @@ def make_client(tmp_path):
 
 
 def outline_json(n=2):
-    return json.dumps({
-        "title": "AI in Education",
-        "slides": [
-            {"slide_number": i, "title": f"Slide {i}", "purpose": f"Purpose {i}"}
-            for i in range(1, n + 1)
-        ],
-    })
+    return json.dumps(
+        {
+            "title": "AI in Education",
+            "slides": [
+                {"slide_number": i, "title": f"Slide {i}", "purpose": f"Purpose {i}"}
+                for i in range(1, n + 1)
+            ],
+        }
+    )
 
 
 def content_json(n=2):
-    return json.dumps({
-        "slides": [
-            {"slide_number": i, "title": f"Slide {i}",
-             "key_points": [f"Point {i}a", f"Point {i}b"]}
-            for i in range(1, n + 1)
-        ],
-    })
+    return json.dumps(
+        {
+            "slides": [
+                {
+                    "slide_number": i,
+                    "title": f"Slide {i}",
+                    "key_points": [f"Point {i}a", f"Point {i}b"],
+                }
+                for i in range(1, n + 1)
+            ],
+        }
+    )
 
 
 def fake_ai(responses):

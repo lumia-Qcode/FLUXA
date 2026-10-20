@@ -1,6 +1,7 @@
 import { applyPatches, enablePatches, Patch, produceWithPatches } from "immer";
 import { Block, Dataset, LayoutId, Slide, Variable } from "../../../../shared/spec";
 import { applyLayoutToBlocks } from "../../rendering/layouts";
+import { applyAIOps } from "./opsEngine";
 import { DeckDocument } from "./types";
 
 // Enable Immer patch recording
@@ -300,5 +301,9 @@ export const commands = {
 
   setVariable: (variableId: string, variable: Variable) => (draft: DeckDocument) => {
     draft.variables[variableId] = variable;
+  },
+
+  applyAIOps: (ops: any[], activeSlideIndex: number = 0) => (draft: DeckDocument) => {
+    applyAIOps(draft, ops, activeSlideIndex);
   },
 };

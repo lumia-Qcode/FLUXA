@@ -1,4 +1,3 @@
-
 import json
 
 from app.prompts.presentation import (
@@ -31,9 +30,7 @@ def generate_presentation(
     try:
         presentation = json.loads(response)
     except json.JSONDecodeError as error:
-        raise ValueError(
-            "AI returned invalid JSON for the presentation."
-        ) from error
+        raise ValueError("AI returned invalid JSON for the presentation.") from error
 
     if not isinstance(presentation, dict):
         raise ValueError("Presentation response must be a JSON object.")
@@ -43,9 +40,7 @@ def generate_presentation(
 
     if len(presentation["slides"]) != slide_count:
         raise ValueError(
-            f"Expected {slide_count} slides, but AI returned "
-            f"{len(presentation['slides'])}."
+            f"Expected {slide_count} slides, but AI returned {len(presentation['slides'])}."
         )
 
     return presentation
-

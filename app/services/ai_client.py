@@ -1,4 +1,3 @@
-
 import requests
 
 from app.config import Config
@@ -20,15 +19,19 @@ def generate_ai_response(prompt: str, system_prompt: str = "") -> str:
     messages = []
 
     if system_prompt.strip():
-        messages.append({
-            "role": "system",
-            "content": system_prompt,
-        })
+        messages.append(
+            {
+                "role": "system",
+                "content": system_prompt,
+            }
+        )
 
-    messages.append({
-        "role": "user",
-        "content": prompt,
-    })
+    messages.append(
+        {
+            "role": "user",
+            "content": prompt,
+        }
+    )
 
     configured = [m for m in [Config.OPENROUTER_MODEL, Config.OPENROUTER_FALLBACK_MODEL] if m]
     default_fallbacks = [
@@ -73,6 +76,4 @@ def generate_ai_response(prompt: str, system_prompt: str = "") -> str:
         except (requests.RequestException, KeyError, IndexError, TypeError, ValueError) as error:
             last_error = error
 
-    raise RuntimeError(
-        f"All configured OpenRouter models failed. Last error: {last_error}"
-    )
+    raise RuntimeError(f"All configured OpenRouter models failed. Last error: {last_error}")

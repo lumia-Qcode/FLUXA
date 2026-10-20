@@ -5,6 +5,7 @@ from flask import Flask
 
 from app.config import Config
 from app.database import init_db
+from app.routes.ai_routes import ai_bp
 from app.routes.asset_routes import asset_bp
 from app.routes.generation_routes import generation_bp
 from app.routes.presentation_routes import presentation_bp
@@ -24,6 +25,8 @@ def create_app():
     app.register_blueprint(presentation_bp, url_prefix="/api/presentations")
     app.register_blueprint(slide_bp, url_prefix="/api/presentations")
     app.register_blueprint(generation_bp, url_prefix="/api/presentations")
+    app.register_blueprint(ai_bp, url_prefix="/api/ai")
+    app.register_blueprint(ai_bp, url_prefix="/api/presentations", name="ai_presentations")
     app.register_blueprint(asset_bp)
 
     @app.get("/api/health")

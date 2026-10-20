@@ -6,10 +6,12 @@ import { BlockInspector } from "./BlockInspector";
 import { SlideInspector } from "./SlideInspector";
 import { DataInspector } from "./DataInspector";
 import { AnimateInspector } from "./AnimateInspector";
+import { AskInspector } from "./AskInspector";
 
 export const InspectorPanel: React.FC = () => {
   const { selectedSlide, selectedBlockIds } = useDocument();
   const [activeTab, setActiveTab] = useState("design");
+  const [isWide, setIsWide] = useState(false);
 
   const activeBlock = selectedSlide?.blocks.find((b) => selectedBlockIds.includes(b.id)) || null;
 
@@ -18,11 +20,12 @@ export const InspectorPanel: React.FC = () => {
       className="ui-inspector-panel"
       borderLeft
       style={{
-        width: "300px",
+        width: isWide && activeTab === "ask" ? "420px" : "300px",
         height: "100%",
         display: "flex",
         flexDirection: "column",
         userSelect: "none",
+        transition: "width 200ms ease",
       }}
     >
       {/* 4 Tabs */}
@@ -37,7 +40,7 @@ export const InspectorPanel: React.FC = () => {
         ]}
       />
 
-      <div style={{ flex: 1, overflowY: "auto" }}>
+      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
         {activeTab === "design" && (
           activeBlock ? <BlockInspector block={activeBlock} /> : <SlideInspector />
         )}
@@ -47,12 +50,10 @@ export const InspectorPanel: React.FC = () => {
         {activeTab === "data" && <DataInspector />}
 
         {activeTab === "ask" && (
-          <div style={{ padding: "16px", color: "var(--ink-2)", fontSize: "13px" }}>
-            <p style={{ margin: "0 0 8px", fontWeight: 600, color: "var(--ink)" }}>FLUXA Assistant</p>
-            <p style={{ margin: 0, fontSize: "12px", lineHeight: 1.5 }}>
-              The multi-provider AI copilot engine will be enabled in Phase 5.
-            </p>
-          </div>
+          <AskInspector
+            isWide={isWide}
+            onToggleWide={() => setIsWide(!isWide)}
+          />
         )}
       </div>
     </Panel>

@@ -14,7 +14,7 @@ export default defineConfig({
   webServer: {
     command: "npm run dev --workspace=frontend -- --force",
     url: "http://127.0.0.1:5173",
-    reuseExistingServer: false,
+    reuseExistingServer: !process.env.CI,
     timeout: 30000,
   },
   projects: [

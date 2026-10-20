@@ -137,7 +137,9 @@ class BlockBase(BaseModel):
     w: float = Field(gt=0)
     h: float = Field(gt=0)
     rotation: Optional[float] = None
-    role: Optional[Literal["title", "subtitle", "body", "media", "chart", "kpi", "aside", "footer"]] = None
+    role: Optional[
+        Literal["title", "subtitle", "body", "media", "chart", "kpi", "aside", "footer"]
+    ] = None
     name: Optional[str] = None
     locked: Optional[bool] = None
     hidden: Optional[bool] = None

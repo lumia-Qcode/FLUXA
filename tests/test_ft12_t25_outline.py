@@ -20,9 +20,7 @@ def test_outline_prompt_validation(topic, count):
 
 
 def test_generate_outline(monkeypatch):
-    monkeypatch.setattr(
-        prompt_service, "generate_ai_response", fake_ai([outline_json(3)])
-    )
+    monkeypatch.setattr(prompt_service, "generate_ai_response", fake_ai([outline_json(3)]))
 
     outline = outline_service.generate_outline("AI", slide_count=3)
 
@@ -31,9 +29,7 @@ def test_generate_outline(monkeypatch):
 
 
 def test_generate_outline_wrong_slide_count(monkeypatch):
-    monkeypatch.setattr(
-        prompt_service, "generate_ai_response", fake_ai([outline_json(2)])
-    )
+    monkeypatch.setattr(prompt_service, "generate_ai_response", fake_ai([outline_json(2)]))
 
     with pytest.raises(AIResponseError):
         outline_service.generate_outline("AI", slide_count=5)

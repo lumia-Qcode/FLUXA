@@ -12,17 +12,14 @@ def make_client(tmp_path):
 
 
 def create_presentation(client, title="Deck"):
-    response = client.post(
-        "/api/presentations",
-        json={"title": title, "description": "Sprint 1"}
-    )
+    response = client.post("/api/presentations", json={"title": title, "description": "Sprint 1"})
     return response.get_json()["presentation"]["id"]
 
 
 def add_slide(client, pid, title, **extra):
     response = client.post(
         f"/api/presentations/{pid}/slides",
-        json={"title": title, "content": f"{title} body", **extra}
+        json={"title": title, "content": f"{title} body", **extra},
     )
     return response.get_json()["slide"]
 

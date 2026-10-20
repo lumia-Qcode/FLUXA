@@ -25,9 +25,7 @@ def seed_phase4(db_path: str = "instance/fluxa.db") -> int:
     conn = get_connection(db_path)
 
     title = "Phase 4 Dynamic Engine Verification"
-    existing = conn.execute(
-        "SELECT id FROM presentations WHERE title = ?", (title,)
-    ).fetchone()
+    existing = conn.execute("SELECT id FROM presentations WHERE title = ?", (title,)).fetchone()
 
     datasets = {
         "adoption": {
@@ -50,7 +48,12 @@ def seed_phase4(db_path: str = "instance/fluxa.db") -> int:
             "columns": [
                 {"key": "quarter", "label": "Quarter", "type": "text"},
                 {"key": "base", "label": "Base Revenue", "type": "number"},
-                {"key": "projected", "label": "Projected", "type": "number", "expr": "base * growth"},
+                {
+                    "key": "projected",
+                    "label": "Projected",
+                    "type": "number",
+                    "expr": "base * growth",
+                },
             ],
             "rows": [
                 {"quarter": "Q1", "base": 100},
@@ -86,7 +89,13 @@ def seed_phase4(db_path: str = "instance/fluxa.db") -> int:
             SET datasets = ?, variables = ?, theme = ?, settings = ?, revision = revision + 1
             WHERE id = ?
             """,
-            (json.dumps(datasets), json.dumps(variables), json.dumps(theme), json.dumps(settings), pres_id),
+            (
+                json.dumps(datasets),
+                json.dumps(variables),
+                json.dumps(theme),
+                json.dumps(settings),
+                pres_id,
+            ),
         )
         conn.commit()
     else:
@@ -117,16 +126,30 @@ def seed_phase4(db_path: str = "instance/fluxa.db") -> int:
             {
                 "id": "title-1",
                 "type": "text",
-                "x": 100, "y": 60, "w": 1720, "h": 90,
+                "x": 100,
+                "y": 60,
+                "w": 1720,
+                "h": 90,
                 "role": "title",
-                "doc": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Annual Adoption Velocity"}]}]},
+                "doc": {
+                    "type": "doc",
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [{"type": "text", "text": "Annual Adoption Velocity"}],
+                        }
+                    ],
+                },
                 "style": {"fontSize": 48, "fontWeight": 700, "align": "left"},
             },
             {
                 "id": "chart-adoption",
                 "type": "chart",
                 "role": "chart",
-                "x": 100, "y": 180, "w": 1080, "h": 780,
+                "x": 100,
+                "y": 180,
+                "w": 1080,
+                "h": 780,
                 "kind": "bar",
                 "dataset": "adoption",
                 "xField": "year",
@@ -137,7 +160,10 @@ def seed_phase4(db_path: str = "instance/fluxa.db") -> int:
                 "id": "kpi-adoption",
                 "type": "kpi",
                 "role": "kpi",
-                "x": 1240, "y": 180, "w": 580, "h": 360,
+                "x": 1240,
+                "y": 180,
+                "w": 580,
+                "h": 360,
                 "value": {"$bind": "last(adoption.pct)"},
                 "label": "Latest Adoption Rate",
                 "format": {"suffix": "%"},
@@ -146,12 +172,23 @@ def seed_phase4(db_path: str = "instance/fluxa.db") -> int:
                 "id": "text-desc",
                 "type": "text",
                 "role": "body",
-                "x": 1240, "y": 580, "w": 580, "h": 380,
+                "x": 1240,
+                "y": 580,
+                "w": 580,
+                "h": 380,
                 "doc": {
                     "type": "doc",
                     "content": [
-                        {"type": "paragraph", "content": [{"type": "text", "text": "The KPI block is reactively bound to last(adoption.pct). Changing the dataset row from 55 to 74 updates the chart bar and counts the KPI to 74."}]}
-                    ]
+                        {
+                            "type": "paragraph",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "The KPI block is reactively bound to last(adoption.pct). Changing the dataset row from 55 to 74 updates the chart bar and counts the KPI to 74.",
+                                }
+                            ],
+                        }
+                    ],
                 },
                 "style": {"fontSize": 24, "lineHeight": 1.5, "align": "left"},
             },
@@ -168,15 +205,29 @@ def seed_phase4(db_path: str = "instance/fluxa.db") -> int:
             {
                 "id": "title-2",
                 "type": "text",
-                "x": 100, "y": 60, "w": 1720, "h": 90,
+                "x": 100,
+                "y": 60,
+                "w": 1720,
+                "h": 90,
                 "role": "title",
-                "doc": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Interactive Revenue Forecast"}]}]},
+                "doc": {
+                    "type": "doc",
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [{"type": "text", "text": "Interactive Revenue Forecast"}],
+                        }
+                    ],
+                },
                 "style": {"fontSize": 48, "fontWeight": 700, "align": "left"},
             },
             {
                 "id": "slider-growth",
                 "type": "control",
-                "x": 100, "y": 180, "w": 700, "h": 100,
+                "x": 100,
+                "y": 180,
+                "w": 700,
+                "h": 100,
                 "control": "slider",
                 "variable": "growth",
                 "label": "Growth Rate",
@@ -187,7 +238,10 @@ def seed_phase4(db_path: str = "instance/fluxa.db") -> int:
             {
                 "id": "chart-forecast",
                 "type": "chart",
-                "x": 100, "y": 310, "w": 1080, "h": 650,
+                "x": 100,
+                "y": 310,
+                "w": 1080,
+                "h": 650,
                 "kind": "column",
                 "dataset": "forecast",
                 "xField": "quarter",
@@ -197,7 +251,10 @@ def seed_phase4(db_path: str = "instance/fluxa.db") -> int:
             {
                 "id": "kpi-forecast",
                 "type": "kpi",
-                "x": 1240, "y": 180, "w": 580, "h": 360,
+                "x": 1240,
+                "y": 180,
+                "w": 580,
+                "h": 360,
                 "value": {"$bind": "round(sum(forecast.projected), 1)"},
                 "label": "Total Projected Revenue",
                 "format": {"prefix": "$", "suffix": "M"},
@@ -215,7 +272,10 @@ def seed_phase4(db_path: str = "instance/fluxa.db") -> int:
             {
                 "id": "widget-calc",
                 "type": "html",
-                "x": 200, "y": 150, "w": 1520, "h": 780,
+                "x": 200,
+                "y": 150,
+                "w": 1520,
+                "h": 780,
                 "code": {
                     "html": '<div id="container"><h2 id="widget-heading">Secure Sandboxed Widget</h2><p>Growth: <span id="current-growth">?</span></p><button id="btn-boost">Boost Growth to 1.8x</button></div>',
                     "css": "body { display: flex; align-items: center; justify-content: center; height: 100%; font-family: sans-serif; }\n#container { background: #FFFFFF; padding: 2rem; border-radius: 8px; border: 1px solid #D9D9DD; box-shadow: 0 4px 12px rgba(0,0,0,0.08); text-align: center; }\nbutton { margin-top: 1rem; padding: 8px 16px; background: #2352F5; color: #FFF; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }",
@@ -235,14 +295,20 @@ def seed_phase4(db_path: str = "instance/fluxa.db") -> int:
             {
                 "id": "kpi-hostile-1",
                 "type": "kpi",
-                "x": 200, "y": 200, "w": 600, "h": 300,
+                "x": 200,
+                "y": 200,
+                "w": 600,
+                "h": 300,
                 "value": {"$bind": "constructor.constructor('alert(1)')()"},
                 "label": "Prohibited Constructor Access",
             },
             {
                 "id": "kpi-hostile-2",
                 "type": "kpi",
-                "x": 900, "y": 200, "w": 600, "h": 300,
+                "x": 900,
+                "y": 200,
+                "w": 600,
+                "h": 300,
                 "value": {"$bind": "1 + * 2"},
                 "label": "Invalid Syntax",
             },
@@ -259,32 +325,88 @@ def seed_phase4(db_path: str = "instance/fluxa.db") -> int:
             {
                 "id": "title-builds",
                 "type": "text",
-                "x": 100, "y": 60, "w": 1720, "h": 90,
+                "x": 100,
+                "y": 60,
+                "w": 1720,
+                "h": 90,
                 "role": "title",
-                "doc": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Sequential Block Builds"}]}]},
+                "doc": {
+                    "type": "doc",
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [{"type": "text", "text": "Sequential Block Builds"}],
+                        }
+                    ],
+                },
                 "style": {"fontSize": 48, "fontWeight": 700, "align": "left"},
             },
             {
                 "id": "step-1",
                 "type": "text",
-                "x": 100, "y": 220, "w": 1720, "h": 120,
-                "doc": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Step 1: First concept is introduced."}]}]},
+                "x": 100,
+                "y": 220,
+                "w": 1720,
+                "h": 120,
+                "doc": {
+                    "type": "doc",
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [
+                                {"type": "text", "text": "Step 1: First concept is introduced."}
+                            ],
+                        }
+                    ],
+                },
                 "style": {"fontSize": 32, "align": "left"},
                 "animation": [{"effect": "fade", "trigger": "onClick", "duration": 300}],
             },
             {
                 "id": "step-2",
                 "type": "text",
-                "x": 100, "y": 380, "w": 1720, "h": 120,
-                "doc": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Step 2: Second concept is added on next click."}]}]},
+                "x": 100,
+                "y": 380,
+                "w": 1720,
+                "h": 120,
+                "doc": {
+                    "type": "doc",
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Step 2: Second concept is added on next click.",
+                                }
+                            ],
+                        }
+                    ],
+                },
                 "style": {"fontSize": 32, "align": "left"},
                 "animation": [{"effect": "rise", "trigger": "onClick", "duration": 300}],
             },
             {
                 "id": "step-3",
                 "type": "text",
-                "x": 100, "y": 540, "w": 1720, "h": 120,
-                "doc": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Step 3: Third concept concludes the sequence."}]}]},
+                "x": 100,
+                "y": 540,
+                "w": 1720,
+                "h": 120,
+                "doc": {
+                    "type": "doc",
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Step 3: Third concept concludes the sequence.",
+                                }
+                            ],
+                        }
+                    ],
+                },
                 "style": {"fontSize": 32, "align": "left"},
                 "animation": [{"effect": "zoom", "trigger": "onClick", "duration": 300}],
             },
@@ -310,7 +432,9 @@ def seed_phase4(db_path: str = "instance/fluxa.db") -> int:
 
     conn.commit()
     conn.close()
-    print(f"Successfully seeded Phase 4 Dynamic Engine Deck (ID: {pres_id}) with {len(slides)} slides.")
+    print(
+        f"Successfully seeded Phase 4 Dynamic Engine Deck (ID: {pres_id}) with {len(slides)} slides."
+    )
     return pres_id
 
 

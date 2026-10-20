@@ -143,7 +143,9 @@ def seed_deck(db_path: str = "instance/fluxa.db") -> int:
                         "content": [
                             {
                                 "type": "paragraph",
-                                "content": [{"type": "text", "text": "Confidential • October 2026"}],
+                                "content": [
+                                    {"type": "text", "text": "Confidential • October 2026"}
+                                ],
                             }
                         ],
                     },
@@ -166,7 +168,9 @@ def seed_deck(db_path: str = "instance/fluxa.db") -> int:
                     "h": 60,
                     "doc": {
                         "type": "doc",
-                        "content": [{"type": "paragraph", "content": [{"type": "text", "text": "PART 01"}]}],
+                        "content": [
+                            {"type": "paragraph", "content": [{"type": "text", "text": "PART 01"}]}
+                        ],
                     },
                     "style": {"fontSize": 20, "fontWeight": 600, "letterSpacing": "0.1em"},
                 },
@@ -183,7 +187,9 @@ def seed_deck(db_path: str = "instance/fluxa.db") -> int:
                         "content": [
                             {
                                 "type": "paragraph",
-                                "content": [{"type": "text", "text": "Rendering Core & Layout System"}],
+                                "content": [
+                                    {"type": "text", "text": "Rendering Core & Layout System"}
+                                ],
                             }
                         ],
                     },
@@ -206,7 +212,12 @@ def seed_deck(db_path: str = "instance/fluxa.db") -> int:
                     "h": 120,
                     "doc": {
                         "type": "doc",
-                        "content": [{"type": "paragraph", "content": [{"type": "text", "text": "System Guarantees"}]}],
+                        "content": [
+                            {
+                                "type": "paragraph",
+                                "content": [{"type": "text", "text": "System Guarantees"}],
+                            }
+                        ],
                     },
                     "style": {"fontSize": 44, "fontWeight": 700},
                 },
@@ -304,7 +315,10 @@ def seed_deck(db_path: str = "instance/fluxa.db") -> int:
                     "doc": {
                         "type": "doc",
                         "content": [
-                            {"type": "paragraph", "content": [{"type": "text", "text": "Architectural Comparison"}]}
+                            {
+                                "type": "paragraph",
+                                "content": [{"type": "text", "text": "Architectural Comparison"}],
+                            }
                         ],
                     },
                     "style": {"fontSize": 44, "fontWeight": 700},
@@ -383,7 +397,10 @@ def seed_deck(db_path: str = "instance/fluxa.db") -> int:
                     "doc": {
                         "type": "doc",
                         "content": [
-                            {"type": "paragraph", "content": [{"type": "text", "text": "Enterprise Performance"}]}
+                            {
+                                "type": "paragraph",
+                                "content": [{"type": "text", "text": "Enterprise Performance"}],
+                            }
                         ],
                     },
                     "style": {"fontSize": 44, "fontWeight": 700},
@@ -442,7 +459,10 @@ def seed_deck(db_path: str = "instance/fluxa.db") -> int:
                     "doc": {
                         "type": "doc",
                         "content": [
-                            {"type": "paragraph", "content": [{"type": "text", "text": "Quarterly Performance"}]}
+                            {
+                                "type": "paragraph",
+                                "content": [{"type": "text", "text": "Quarterly Performance"}],
+                            }
                         ],
                     },
                     "style": {"fontSize": 44, "fontWeight": 700},
@@ -502,7 +522,10 @@ def seed_deck(db_path: str = "instance/fluxa.db") -> int:
                     "doc": {
                         "type": "doc",
                         "content": [
-                            {"type": "paragraph", "content": [{"type": "text", "text": "Visual Framing"}]}
+                            {
+                                "type": "paragraph",
+                                "content": [{"type": "text", "text": "Visual Framing"}],
+                            }
                         ],
                     },
                     "style": {"fontSize": 44, "fontWeight": 700},
@@ -580,7 +603,10 @@ def seed_deck(db_path: str = "instance/fluxa.db") -> int:
                     "doc": {
                         "type": "doc",
                         "content": [
-                            {"type": "paragraph", "content": [{"type": "text", "text": "Execution Roadmap"}]}
+                            {
+                                "type": "paragraph",
+                                "content": [{"type": "text", "text": "Execution Roadmap"}],
+                            }
                         ],
                     },
                     "style": {"fontSize": 44, "fontWeight": 700},
@@ -619,7 +645,10 @@ def seed_deck(db_path: str = "instance/fluxa.db") -> int:
                     "doc": {
                         "type": "doc",
                         "content": [
-                            {"type": "paragraph", "content": [{"type": "text", "text": "Comparative Architecture"}]}
+                            {
+                                "type": "paragraph",
+                                "content": [{"type": "text", "text": "Comparative Architecture"}],
+                            }
                         ],
                     },
                     "style": {"fontSize": 44, "fontWeight": 700},
@@ -706,7 +735,12 @@ def seed_deck(db_path: str = "instance/fluxa.db") -> int:
                     "doc": {
                         "type": "doc",
                         "content": [
-                            {"type": "paragraph", "content": [{"type": "text", "text": "Interactive Parameter Controls"}]}
+                            {
+                                "type": "paragraph",
+                                "content": [
+                                    {"type": "text", "text": "Interactive Parameter Controls"}
+                                ],
+                            }
                         ],
                     },
                     "style": {"fontSize": 44, "fontWeight": 700},
@@ -754,7 +788,10 @@ def seed_deck(db_path: str = "instance/fluxa.db") -> int:
                     "doc": {
                         "type": "doc",
                         "content": [
-                            {"type": "paragraph", "content": [{"type": "text", "text": "Dynamic Text Fit Engine"}]}
+                            {
+                                "type": "paragraph",
+                                "content": [{"type": "text", "text": "Dynamic Text Fit Engine"}],
+                            }
                         ],
                     },
                     "style": {"fontSize": 44, "fontWeight": 700},
@@ -811,7 +848,9 @@ def seed_deck(db_path: str = "instance/fluxa.db") -> int:
                         "content": [
                             {
                                 "type": "paragraph",
-                                "content": [{"type": "text", "text": "مصنوعی ذہانت اور جدید ٹیکنالوجی"}],
+                                "content": [
+                                    {"type": "text", "text": "مصنوعی ذہانت اور جدید ٹیکنالوجی"}
+                                ],
                             }
                         ],
                     },

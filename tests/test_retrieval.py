@@ -17,10 +17,7 @@ def make_client(tmp_path):
 
 def create_presentation(client, title="Deck"):
 
-    response = client.post(
-        "/api/presentations",
-        json={"title": title, "description": "Sprint 1"}
-    )
+    response = client.post("/api/presentations", json={"title": title, "description": "Sprint 1"})
 
     return response.get_json()["presentation"]["id"]
 
@@ -29,7 +26,7 @@ def add_slide(client, pid, title, **extra):
 
     response = client.post(
         f"/api/presentations/{pid}/slides",
-        json={"title": title, "content": f"{title} body", **extra}
+        json={"title": title, "content": f"{title} body", **extra},
     )
 
     return response.get_json()["slide"]
@@ -134,9 +131,7 @@ def test_get_single_slide(tmp_path):
     pid = create_presentation(client)
     slide = add_slide(client, pid, "Intro")
 
-    response = client.get(
-        f"/api/presentations/{pid}/slides/{slide['id']}"
-    )
+    response = client.get(f"/api/presentations/{pid}/slides/{slide['id']}")
 
     assert response.status_code == 200
     assert response.get_json()["slide"]["title"] == "Intro"
@@ -161,8 +156,6 @@ def test_get_slide_from_other_presentation_returns_404(tmp_path):
 
     slide = add_slide(client, pid_a, "Only in A")
 
-    response = client.get(
-        f"/api/presentations/{pid_b}/slides/{slide['id']}"
-    )
+    response = client.get(f"/api/presentations/{pid_b}/slides/{slide['id']}")
 
     assert response.status_code == 404

@@ -32,7 +32,7 @@ def extract_json(text: str) -> dict:
             raise AIResponseError("AI returned invalid JSON.") from None
 
         try:
-            data = json.loads(cleaned[start:end + 1])
+            data = json.loads(cleaned[start : end + 1])
         except json.JSONDecodeError as error:
             raise AIResponseError("AI returned invalid JSON.") from error
 
@@ -61,9 +61,7 @@ def parse_outline(data: dict, slide_count: int) -> dict:
         raise AIResponseError("Outline must contain a non-empty slides list.")
 
     if len(slides) != slide_count:
-        raise AIResponseError(
-            f"Expected {slide_count} slides, but AI returned {len(slides)}."
-        )
+        raise AIResponseError(f"Expected {slide_count} slides, but AI returned {len(slides)}.")
 
     outline = []
 
@@ -73,11 +71,13 @@ def parse_outline(data: dict, slide_count: int) -> dict:
 
         purpose = slide.get("purpose", "")
 
-        outline.append({
-            "slide_number": index,
-            "title": _clean_text(slide.get("title"), "title"),
-            "purpose": purpose.strip() if isinstance(purpose, str) else "",
-        })
+        outline.append(
+            {
+                "slide_number": index,
+                "title": _clean_text(slide.get("title"), "title"),
+                "purpose": purpose.strip() if isinstance(purpose, str) else "",
+            }
+        )
 
     return {
         "title": _clean_text(data.get("title"), "title"),
@@ -98,8 +98,7 @@ def parse_slide_content(data: dict, outline: list) -> list:
 
     if len(slides) != len(outline):
         raise AIResponseError(
-            f"Expected content for {len(outline)} slides, "
-            f"but AI returned {len(slides)}."
+            f"Expected content for {len(outline)} slides, but AI returned {len(slides)}."
         )
 
     parsed = []
@@ -120,13 +119,15 @@ def parse_slide_content(data: dict, outline: list) -> list:
 
         title = slide.get("title")
 
-        parsed.append({
-            "slide_number": index,
-            "title": title.strip()
-            if isinstance(title, str) and title.strip()
-            else planned["title"],
-            "key_points": points,
-        })
+        parsed.append(
+            {
+                "slide_number": index,
+                "title": title.strip()
+                if isinstance(title, str) and title.strip()
+                else planned["title"],
+                "key_points": points,
+            }
+        )
 
     return parsed
 

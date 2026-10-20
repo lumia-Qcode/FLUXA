@@ -9,10 +9,7 @@ def test_health():
     app.config["TESTING"] = True
 
     with app.test_client() as client:
-
-        response = client.get(
-            "/api/health"
-        )
+        response = client.get("/api/health")
 
         assert response.status_code == 200
 
@@ -21,9 +18,7 @@ def test_health():
 
 def test_create_presentation(tmp_path):
 
-    db_path = str(
-        tmp_path / "test.db"
-    )
+    db_path = str(tmp_path / "test.db")
 
     app = create_app()
 
@@ -34,20 +29,13 @@ def test_create_presentation(tmp_path):
     init_db(db_path)
 
     with app.test_client() as client:
-
         response = client.post(
             "/api/presentations",
-            json={
-                "title": "Test Presentation",
-                "description": "Created during Sprint 1"
-            }
+            json={"title": "Test Presentation", "description": "Created during Sprint 1"},
         )
 
         assert response.status_code == 201
 
         data = response.get_json()
 
-        assert (
-            data["presentation"]["title"]
-            == "Test Presentation"
-        )
+        assert data["presentation"]["title"] == "Test Presentation"

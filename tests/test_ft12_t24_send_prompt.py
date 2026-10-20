@@ -29,9 +29,7 @@ def test_send_prompt_for_json_retries_on_bad_json(monkeypatch):
 
 
 def test_send_prompt_for_json_gives_up_after_max_attempts(monkeypatch):
-    monkeypatch.setattr(
-        prompt_service, "generate_ai_response", fake_ai(["bad", "bad"])
-    )
+    monkeypatch.setattr(prompt_service, "generate_ai_response", fake_ai(["bad", "bad"]))
 
     with pytest.raises(AIResponseError):
         prompt_service.send_prompt_for_json("p")

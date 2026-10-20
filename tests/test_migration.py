@@ -43,7 +43,9 @@ def test_tokenize_all_five_legacy_tags():
     assert quote_token["attribution"] == "Andrew Ng"
 
     # 4. Compare (with colon in title)
-    compare_token = tokenize_tag('[compare:Strategic Analysis: 2025:{"Before":["Manual"],"After":["Auto"]}]')
+    compare_token = tokenize_tag(
+        '[compare:Strategic Analysis: 2025:{"Before":["Manual"],"After":["Auto"]}]'
+    )
     assert compare_token["type"] == "compare"
     assert compare_token["title"] == "Strategic Analysis: 2025"
     assert "Before" in compare_token["data"]

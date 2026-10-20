@@ -70,7 +70,9 @@ def test_bad_bounds_returns_422(client):
         ],
     }
 
-    res = client.put(f"/api/presentations/{pres_id}/slides/{slide_id}", json={"spec": bad_bounds_spec})
+    res = client.put(
+        f"/api/presentations/{pres_id}/slides/{slide_id}", json={"spec": bad_bounds_spec}
+    )
     assert res.status_code == 422
     body = res.get_json()
     assert "Invalid slide specification" in body["error"]
@@ -122,7 +124,9 @@ def test_valid_spec_roundtrip_returns_200(client):
         ],
     }
 
-    update_res = client.put(f"/api/presentations/{pres_id}/slides/{slide_id}", json={"spec": valid_spec})
+    update_res = client.put(
+        f"/api/presentations/{pres_id}/slides/{slide_id}", json={"spec": valid_spec}
+    )
     assert update_res.status_code == 200
     saved_slide = update_res.get_json()["slide"]
     assert saved_slide["spec"] is not None

@@ -274,7 +274,17 @@ def convert_slide_content(title: str, content: str, slide_order: int) -> tuple[d
 
         if tag_type == "chart":
             chart_kind = tag.get("kind", "bar")
-            if chart_kind not in ["bar", "column", "line", "area", "pie", "donut", "scatter", "radar", "stacked"]:
+            if chart_kind not in [
+                "bar",
+                "column",
+                "line",
+                "area",
+                "pie",
+                "donut",
+                "scatter",
+                "radar",
+                "stacked",
+            ]:
                 chart_kind = "bar"
 
             chart_data = tag.get("data", {})
@@ -456,7 +466,9 @@ def migrate_database(database_path: str, force: bool = False) -> tuple[int, int]
 
         if deck_needs_update:
             # Merge deck datasets into presentations table
-            curr_ds_raw = con.execute("SELECT datasets FROM presentations WHERE id = ?", (pres_id,)).fetchone()
+            curr_ds_raw = con.execute(
+                "SELECT datasets FROM presentations WHERE id = ?", (pres_id,)
+            ).fetchone()
             existing_ds = {}
             if curr_ds_raw and curr_ds_raw["datasets"]:
                 try:
@@ -485,7 +497,9 @@ def main():
         print(f"Created database backup: {backup_file}")
 
     decks_count, slides_count = migrate_database(db_path)
-    print(f"Migration finished successfully: {decks_count} presentations and {slides_count} slides migrated.")
+    print(
+        f"Migration finished successfully: {decks_count} presentations and {slides_count} slides migrated."
+    )
 
 
 if __name__ == "__main__":

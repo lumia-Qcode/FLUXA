@@ -37,7 +37,9 @@ def sanitize_svg(content: bytes) -> bytes:
 def upload_asset(presentation_id):
     connection = get_connection(current_app.config["DATABASE_PATH"])
     try:
-        pres = connection.execute("SELECT id FROM presentations WHERE id = ?", (presentation_id,)).fetchone()
+        pres = connection.execute(
+            "SELECT id FROM presentations WHERE id = ?", (presentation_id,)
+        ).fetchone()
         if pres is None:
             return {"error": "Presentation not found."}, 404
     finally:
@@ -56,7 +58,14 @@ def upload_asset(presentation_id):
     # Fallback MIME detection from extension if generic octet-stream
     ext = os.path.splitext(filename)[1].lower()
     if mime == "application/octet-stream":
-        ext_map = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".svg": "image/svg+xml", ".mp4": "video/mp4"}
+        ext_map = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
+            ".svg": "image/svg+xml",
+            ".mp4": "video/mp4",
+        }
         if ext in ext_map:
             mime = ext_map[ext]
 

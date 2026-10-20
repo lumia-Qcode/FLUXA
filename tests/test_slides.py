@@ -17,10 +17,7 @@ def make_client(tmp_path):
 
 def create_presentation(client):
 
-    response = client.post(
-        "/api/presentations",
-        json={"title": "Deck", "description": "Sprint 1"}
-    )
+    response = client.post("/api/presentations", json={"title": "Deck", "description": "Sprint 1"})
 
     return response.get_json()["presentation"]["id"]
 
@@ -31,8 +28,7 @@ def test_add_slide(tmp_path):
     pid = create_presentation(client)
 
     response = client.post(
-        f"/api/presentations/{pid}/slides",
-        json={"title": "Intro", "content": "Welcome"}
+        f"/api/presentations/{pid}/slides", json={"title": "Intro", "content": "Welcome"}
     )
 
     assert response.status_code == 201
@@ -58,10 +54,7 @@ def test_add_slide_auto_orders_and_inserts(tmp_path):
     assert first["slide_order"] == 1
     assert second["slide_order"] == 2
 
-    inserted = client.post(
-        url,
-        json={"title": "C", "slide_order": 1}
-    ).get_json()["slide"]
+    inserted = client.post(url, json={"title": "C", "slide_order": 1}).get_json()["slide"]
 
     assert inserted["slide_order"] == 1
 
@@ -70,10 +63,7 @@ def test_add_slide_presentation_not_found(tmp_path):
 
     client = make_client(tmp_path)
 
-    response = client.post(
-        "/api/presentations/999/slides",
-        json={"title": "X"}
-    )
+    response = client.post("/api/presentations/999/slides", json={"title": "X"})
 
     assert response.status_code == 404
 
@@ -83,10 +73,7 @@ def test_add_slide_invalid_body(tmp_path):
     client = make_client(tmp_path)
     pid = create_presentation(client)
 
-    response = client.post(
-        f"/api/presentations/{pid}/slides",
-        json={"title": 123}
-    )
+    response = client.post(f"/api/presentations/{pid}/slides", json={"title": 123})
 
     assert response.status_code == 400
 
@@ -97,13 +84,11 @@ def test_update_slide(tmp_path):
     pid = create_presentation(client)
 
     slide = client.post(
-        f"/api/presentations/{pid}/slides",
-        json={"title": "Old", "content": "Old content"}
+        f"/api/presentations/{pid}/slides", json={"title": "Old", "content": "Old content"}
     ).get_json()["slide"]
 
     response = client.put(
-        f"/api/presentations/{pid}/slides/{slide['id']}",
-        json={"content": "New content"}
+        f"/api/presentations/{pid}/slides/{slide['id']}", json={"content": "New content"}
     )
 
     assert response.status_code == 200
@@ -119,10 +104,7 @@ def test_update_slide_not_found(tmp_path):
     client = make_client(tmp_path)
     pid = create_presentation(client)
 
-    response = client.put(
-        f"/api/presentations/{pid}/slides/999",
-        json={"title": "X"}
-    )
+    response = client.put(f"/api/presentations/{pid}/slides/999", json={"title": "X"})
 
     assert response.status_code == 404
 
@@ -132,14 +114,8 @@ def test_update_slide_requires_fields(tmp_path):
     client = make_client(tmp_path)
     pid = create_presentation(client)
 
-    slide = client.post(
-        f"/api/presentations/{pid}/slides",
-        json={"title": "A"}
-    ).get_json()["slide"]
+    slide = client.post(f"/api/presentations/{pid}/slides", json={"title": "A"}).get_json()["slide"]
 
-    response = client.put(
-        f"/api/presentations/{pid}/slides/{slide['id']}",
-        json={}
-    )
+    response = client.put(f"/api/presentations/{pid}/slides/{slide['id']}", json={})
 
     assert response.status_code == 400

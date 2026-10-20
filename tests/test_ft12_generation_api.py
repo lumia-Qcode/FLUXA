@@ -7,9 +7,7 @@ from tests.ft12_helpers import content_json, fake_ai, make_client, outline_json
 
 def configure(monkeypatch, responses):
     monkeypatch.setattr(Config, "OPENROUTER_API_KEY", "test-key")
-    monkeypatch.setattr(
-        prompt_service, "generate_ai_response", fake_ai(responses)
-    )
+    monkeypatch.setattr(prompt_service, "generate_ai_response", fake_ai(responses))
 
 
 def test_generate_presentation_saves_slides(tmp_path, monkeypatch):
@@ -81,9 +79,7 @@ def test_generate_bad_ai_output_returns_502_and_saves_nothing(tmp_path, monkeypa
     client = make_client(tmp_path)
     configure(monkeypatch, ["bad", "bad"])
 
-    response = client.post(
-        "/api/presentations/generate", json={"topic": "AI", "slide_count": 2}
-    )
+    response = client.post("/api/presentations/generate", json={"topic": "AI", "slide_count": 2})
 
     assert response.status_code == 502
     assert client.get("/api/presentations").get_json()["count"] == 0

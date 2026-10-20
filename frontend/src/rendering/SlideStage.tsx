@@ -215,3 +215,5 @@ export const SlideStage: React.FC<SlideStageProps> = ({
     </div>
   );
 };
+
+export default SlideStage;

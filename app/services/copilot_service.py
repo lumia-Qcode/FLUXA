@@ -46,7 +46,10 @@ Return strictly JSON with this schema:
 }
 """
 
-def execute_copilot_command(database_path: str, presentation_id: int, message: str, current_slide_id: int = None) -> dict:
+
+def execute_copilot_command(
+    database_path: str, presentation_id: int, message: str, current_slide_id: int = None
+) -> dict:
     """Execute conversational AI copilot commands to edit, add, or delete slides."""
 
     connection = get_connection(database_path)
@@ -74,14 +77,19 @@ def execute_copilot_command(database_path: str, presentation_id: int, message: s
         connection.close()
 
     slides_summary = [
-        {"id": s["id"], "order": s["slide_order"], "title": s["title"], "content": s["content"][:200]}
+        {
+            "id": s["id"],
+            "order": s["slide_order"],
+            "title": s["title"],
+            "content": s["content"][:200],
+        }
         for s in slides
     ]
 
     prompt = f"""
 Current Presentation:
-Title: {pres_row['title']}
-Description: {pres_row['description']}
+Title: {pres_row["title"]}
+Description: {pres_row["description"]}
 Active Slide ID: {current_slide_id}
 Total Slides: {len(slides)}
 
@@ -180,7 +188,9 @@ Return JSON matching the schema.
     }
 
 
-def ai_enhance_slide(database_path: str, presentation_id: int, slide_id: int, instruction: str = "") -> dict:
+def ai_enhance_slide(
+    database_path: str, presentation_id: int, slide_id: int, instruction: str = ""
+) -> dict:
     """Enhance a single slide with deeper insights, metrics, and visual components."""
 
     connection = get_connection(database_path)
@@ -198,11 +208,11 @@ def ai_enhance_slide(database_path: str, presentation_id: int, slide_id: int, in
         connection.close()
 
     prompt = f"""
-Slide Title: {slide_dict['title']}
+Slide Title: {slide_dict["title"]}
 Current Content:
-{slide_dict['content']}
+{slide_dict["content"]}
 
-User Instruction: {instruction or 'Enrich this slide with high-impact key points, metrics, and an optional chart or comparison.'}
+User Instruction: {instruction or "Enrich this slide with high-impact key points, metrics, and an optional chart or comparison."}
 
 Return JSON with:
 {{

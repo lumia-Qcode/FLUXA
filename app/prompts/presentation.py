@@ -1,4 +1,3 @@
-
 PRESENTATION_SYSTEM_PROMPT = """
 You are FLUXA, an AI presentation planning assistant.
 

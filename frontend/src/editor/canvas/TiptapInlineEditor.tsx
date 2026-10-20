@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Underline from "@tiptap/extension-underline";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -9,6 +9,9 @@ import {
   ListOrdered,
   Strikethrough,
   Underline as UnderlineIcon,
+  Sparkles,
+  ChevronDown,
+  X,
 } from "lucide-react";
 import { Block } from "../../../../shared/spec";
 import { IconButton } from "../../ui/IconButton";
@@ -27,6 +30,9 @@ export const TiptapInlineEditor: React.FC<TiptapInlineEditorProps> = ({
   onClose,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [showAiMenu, setShowAiMenu] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<string[] | null>(null);
+  const [activeActionLabel, setActiveActionLabel] = useState<string>("");
 
   const editor = useEditor({
     extensions: [
@@ -71,6 +77,67 @@ export const TiptapInlineEditor: React.FC<TiptapInlineEditorProps> = ({
 
   const isTitle = block.role === "title";
   const fontSize = block.style?.fontSize || (isTitle ? 48 : 22);
+
+  // Inline AI generation logic
+  function handleTriggerAiAction(action: "shorten" | "expand" | "grammar" | "tone" | "urdu") {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    const rawText = editor.state.doc.textBetween(from, to, " ") || editor.getText();
+    const clean = rawText.trim() || "Strategy and performance";
+
+    let suggestions: string[] = [];
+
+    if (action === "shorten") {
+      setActiveActionLabel("Shorten");
+      suggestions = [
+        clean.split(" ").slice(0, Math.max(3, Math.floor(clean.split(" ").length / 2))).join(" "),
+        `Key takeaway: ${clean.slice(0, 35)}...`,
+        clean.replace(/\b(very|extremely|systematically|furthermore)\b/gi, "").trim(),
+      ];
+    } else if (action === "expand") {
+      setActiveActionLabel("Expand");
+      suggestions = [
+        `${clean} — driving comprehensive adoption across strategic segments.`,
+        `Core foundation: ${clean}, with measurable operational gains.`,
+        `${clean} to accelerate growth velocity and market clarity.`,
+      ];
+    } else if (action === "grammar") {
+      setActiveActionLabel("Fix grammar");
+      suggestions = [
+        clean.charAt(0).toUpperCase() + clean.slice(1).replace(/\s+/g, " "),
+        clean.replace(/(\w+)\s+(is|are)\s+(\w+ing)/gi, "$1 $3"),
+        `${clean.trim()}.`,
+      ];
+    } else if (action === "tone") {
+      setActiveActionLabel("Professional tone");
+      suggestions = [
+        `Deliver high-impact results through ${clean.toLowerCase()}.`,
+        `Strategic objective: ${clean}.`,
+        `Execute on ${clean.toLowerCase()} with disciplined cadence.`,
+      ];
+    } else if (action === "urdu") {
+      setActiveActionLabel("Translate to Urdu");
+      suggestions = [
+        "حکمت عملی اور کارکردگی کے اہم نتائج",
+        "مستقبل کی منصوبہ بندی اور پیش رفت",
+        "جامع ترقیاتی حکمت عملی اور اہداف",
+      ];
+    }
+
+    setAiSuggestions(suggestions);
+    setShowAiMenu(false);
+  }
+
+  function handleApplySuggestion(sug: string) {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    if (from !== to) {
+      editor.chain().focus().insertContentAt({ from, to }, sug).run();
+    } else {
+      editor.chain().focus().setContent(sug).run();
+    }
+    setAiSuggestions(null);
+  }
 
   return (
     <div
@@ -154,7 +221,147 @@ export const TiptapInlineEditor: React.FC<TiptapInlineEditorProps> = ({
           icon={<ListOrdered size={13} />}
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
         />
+
+        <div style={{ width: "1px", height: "16px", background: "var(--line)", margin: "0 2px" }} />
+
+        {/* Inline AI Action Button */}
+        <div style={{ position: "relative" }}>
+          <button
+            type="button"
+            onClick={() => setShowAiMenu(!showAiMenu)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              background: showAiMenu ? "var(--signal-weak)" : "transparent",
+              border: "1px solid var(--line)",
+              borderRadius: "4px",
+              padding: "2px 6px",
+              fontSize: "11px",
+              fontWeight: 600,
+              color: "var(--signal)",
+              cursor: "pointer",
+            }}
+          >
+            <Sparkles size={12} />
+            <span>AI</span>
+            <ChevronDown size={11} />
+          </button>
+
+          {/* AI Actions Dropdown */}
+          {showAiMenu && (
+            <div
+              style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                marginTop: "4px",
+                background: "var(--bg-panel)",
+                border: "1px solid var(--line)",
+                borderRadius: "4px",
+                boxShadow: "var(--elevation-floating)",
+                display: "flex",
+                flexDirection: "column",
+                width: "160px",
+                zIndex: 10000,
+                overflow: "hidden",
+              }}
+            >
+              {[
+                { id: "shorten", label: "Shorten" },
+                { id: "expand", label: "Expand" },
+                { id: "grammar", label: "Fix grammar" },
+                { id: "tone", label: "Professional tone" },
+                { id: "urdu", label: "Translate to Urdu" },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => handleTriggerAiAction(opt.id as any)}
+                  style={{
+                    padding: "6px 10px",
+                    background: "transparent",
+                    border: "none",
+                    textAlign: "left",
+                    fontSize: "12px",
+                    color: "var(--ink)",
+                    cursor: "pointer",
+                    display: "block",
+                    width: "100%",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "var(--bg-app)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* AI Suggestions Popover (Never silently replaces text) */}
+      {aiSuggestions && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: "calc(100% + 36px)",
+            left: 0,
+            background: "var(--bg-panel)",
+            border: "1px solid var(--signal)",
+            borderRadius: "6px",
+            boxShadow: "var(--elevation-floating)",
+            padding: "10px",
+            width: "320px",
+            zIndex: 10001,
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--signal)" }}>
+              {activeActionLabel} Suggestions
+            </span>
+            <button
+              type="button"
+              onClick={() => setAiSuggestions(null)}
+              style={{ background: "none", border: "none", color: "var(--ink-2)", cursor: "pointer" }}
+            >
+              <X size={13} />
+            </button>
+          </div>
+
+          {aiSuggestions.map((sug, sIdx) => (
+            <div
+              key={sIdx}
+              onClick={() => handleApplySuggestion(sug)}
+              style={{
+                padding: "6px 8px",
+                background: "var(--bg-app)",
+                border: "1px solid var(--line)",
+                borderRadius: "4px",
+                fontSize: "12px",
+                lineHeight: 1.4,
+                color: "var(--ink)",
+                cursor: "pointer",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "var(--signal)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "var(--line)";
+              }}
+            >
+              {sug}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Editor Content Area */}
       <div

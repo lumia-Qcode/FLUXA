@@ -33,7 +33,9 @@ def create_presentation():
     theme = data.get("theme", {"themeId": "default"})
     datasets = data.get("datasets", {})
     variables = data.get("variables", {})
-    settings = data.get("settings", {"transition": {"effect": "fade", "duration": 300}, "loop": False})
+    settings = data.get(
+        "settings", {"transition": {"effect": "fade", "duration": 300}, "loop": False}
+    )
 
     if not title or not isinstance(title, str):
         return {"error": "The 'title' field is required and must be a string."}, 400
@@ -95,7 +97,9 @@ def create_presentation():
         theme=parse_json_safely(row["theme"], {"themeId": "default"}),
         datasets=parse_json_safely(row["datasets"], {}),
         variables=parse_json_safely(row["variables"], {}),
-        settings=parse_json_safely(row["settings"], {"transition": {"effect": "fade", "duration": 300}, "loop": False}),
+        settings=parse_json_safely(
+            row["settings"], {"transition": {"effect": "fade", "duration": 300}, "loop": False}
+        ),
         schema_version=row["schema_version"] or 1,
         revision=row["revision"] or 1,
     )
@@ -159,7 +163,9 @@ def list_presentations():
             theme=parse_json_safely(row["theme"], {"themeId": "default"}),
             datasets=parse_json_safely(row["datasets"], {}),
             variables=parse_json_safely(row["variables"], {}),
-            settings=parse_json_safely(row["settings"], {"transition": {"effect": "fade", "duration": 300}, "loop": False}),
+            settings=parse_json_safely(
+                row["settings"], {"transition": {"effect": "fade", "duration": 300}, "loop": False}
+            ),
             schema_version=row["schema_version"] or 1,
             revision=row["revision"] or 1,
         ).to_dict()
@@ -210,7 +216,9 @@ def get_presentation(presentation_id):
         theme=parse_json_safely(row["theme"], {"themeId": "default"}),
         datasets=parse_json_safely(row["datasets"], {}),
         variables=parse_json_safely(row["variables"], {}),
-        settings=parse_json_safely(row["settings"], {"transition": {"effect": "fade", "duration": 300}, "loop": False}),
+        settings=parse_json_safely(
+            row["settings"], {"transition": {"effect": "fade", "duration": 300}, "loop": False}
+        ),
         schema_version=row["schema_version"] or 1,
         revision=row["revision"] or 1,
     ).to_dict()
@@ -350,7 +358,10 @@ def update_presentation(presentation_id):
         theme=parse_json_safely(updated_row["theme"], {"themeId": "default"}),
         datasets=parse_json_safely(updated_row["datasets"], {}),
         variables=parse_json_safely(updated_row["variables"], {}),
-        settings=parse_json_safely(updated_row["settings"], {"transition": {"effect": "fade", "duration": 300}, "loop": False}),
+        settings=parse_json_safely(
+            updated_row["settings"],
+            {"transition": {"effect": "fade", "duration": 300}, "loop": False},
+        ),
         schema_version=updated_row["schema_version"] or 1,
         revision=updated_row["revision"] or new_rev,
     ).to_dict()
@@ -363,7 +374,9 @@ def delete_presentation(presentation_id):
     connection = get_connection(current_app.config["DATABASE_PATH"])
 
     try:
-        row = connection.execute("SELECT id FROM presentations WHERE id = ?", (presentation_id,)).fetchone()
+        row = connection.execute(
+            "SELECT id FROM presentations WHERE id = ?", (presentation_id,)
+        ).fetchone()
         if row is None:
             return {"error": "Presentation not found."}, 404
 
@@ -423,4 +436,3 @@ def duplicate_presentation(presentation_id):
         connection.close()
 
     return {"message": "Presentation duplicated", "id": new_id}, 201
-

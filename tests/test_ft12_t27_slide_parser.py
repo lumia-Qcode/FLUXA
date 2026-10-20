@@ -34,9 +34,7 @@ OUTLINE = [{"slide_number": 1, "title": "Planned", "purpose": ""}]
 def test_parse_slide_content_falls_back_to_outline_title():
     data = {"slides": [{"key_points": ["  one ", "", 5, "two"]}]}
     slides = parse_slide_content(data, OUTLINE)
-    assert slides == [
-        {"slide_number": 1, "title": "Planned", "key_points": ["one", "two"]}
-    ]
+    assert slides == [{"slide_number": 1, "title": "Planned", "key_points": ["one", "two"]}]
 
 
 def test_parse_slide_content_requires_key_points():
@@ -45,9 +43,5 @@ def test_parse_slide_content_requires_key_points():
 
 
 def test_to_slide_records_matches_slides_table_format():
-    records = to_slide_records(
-        [{"slide_number": 1, "title": "Intro", "key_points": ["A", "B"]}]
-    )
-    assert records == [
-        {"slide_order": 1, "title": "Intro", "content": "- A\n- B"}
-    ]
+    records = to_slide_records([{"slide_number": 1, "title": "Intro", "key_points": ["A", "B"]}])
+    assert records == [{"slide_order": 1, "title": "Intro", "content": "- A\n- B"}]
