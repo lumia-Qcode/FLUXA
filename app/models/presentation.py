@@ -15,6 +15,8 @@ class Presentation:
     settings: Optional[dict[str, Any]] = None
     schema_version: int = 1
     revision: int = 1
+    share_token: Optional[str] = None
+    is_shared: bool = False
 
     def to_dict(self):
         return {
@@ -30,6 +32,8 @@ class Presentation:
             or {"transition": {"effect": "fade", "duration": 300}, "loop": False},
             "schema_version": self.schema_version,
             "revision": self.revision,
+            "share_token": self.share_token,
+            "is_shared": self.is_shared,
         }
 
 

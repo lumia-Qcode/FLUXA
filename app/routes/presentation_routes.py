@@ -184,7 +184,8 @@ def get_presentation(presentation_id):
         row = connection.execute(
             """
             SELECT id, title, description, created_at, updated_at,
-                   theme, datasets, variables, settings, schema_version, revision
+                   theme, datasets, variables, settings, schema_version, revision,
+                   share_token, is_shared
             FROM presentations
             WHERE id = ?
             """,
@@ -221,6 +222,8 @@ def get_presentation(presentation_id):
         ),
         schema_version=row["schema_version"] or 1,
         revision=row["revision"] or 1,
+        share_token=row["share_token"],
+        is_shared=bool(row["is_shared"]),
     ).to_dict()
 
     slides = [
@@ -241,6 +244,71 @@ def get_presentation(presentation_id):
     presentation["slide_count"] = len(slides)
 
     return {"presentation": presentation}, 200
+
+
+@presentation_bp.post("/<int:presentation_id>/share")
+def create_share_link(presentation_id):
+    """Enable sharing and generate an unguessable share token."""
+    import secrets
+
+    connection = get_connection(current_app.config["DATABASE_PATH"])
+    try:
+        row = connection.execute(
+            "SELECT id, share_token, is_shared FROM presentations WHERE id = ?",
+            (presentation_id,),
+        ).fetchone()
+        if not row:
+            return {"error": "Presentation not found."}, 404
+
+        token = row["share_token"]
+        if not token:
+            token = secrets.token_urlsafe(16)
+
+        connection.execute(
+            """
+            UPDATE presentations
+            SET share_token = ?, is_shared = 1, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (token, presentation_id),
+        )
+        connection.commit()
+        return {
+            "share_token": token,
+            "share_url": f"/v/{token}",
+            "is_shared": True,
+        }, 200
+    finally:
+        connection.close()
+
+
+@presentation_bp.delete("/<int:presentation_id>/share")
+def revoke_share_link(presentation_id):
+    """Revoke sharing for a presentation."""
+    connection = get_connection(current_app.config["DATABASE_PATH"])
+    try:
+        row = connection.execute(
+            "SELECT id FROM presentations WHERE id = ?",
+            (presentation_id,),
+        ).fetchone()
+        if not row:
+            return {"error": "Presentation not found."}, 404
+
+        connection.execute(
+            """
+            UPDATE presentations
+            SET is_shared = 0, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (presentation_id,),
+        )
+        connection.commit()
+        return {
+            "message": "Share link has been revoked.",
+            "is_shared": False,
+        }, 200
+    finally:
+        connection.close()
 
 
 @presentation_bp.route("/<int:presentation_id>", methods=["PUT", "PATCH"])

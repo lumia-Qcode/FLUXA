@@ -22,6 +22,7 @@ import { InspectorPanel } from "./inspector/InspectorPanel";
 import { SlideRail } from "./rail/SlideRail";
 import { SlideSorterModal } from "./rail/SlideSorterModal";
 import { ShortcutSheetModal } from "./ShortcutSheetModal";
+import { ExportDialog } from "./dialogs/ExportDialog";
 import { commands } from "./store/documentStore";
 import { useDocument } from "./store/DocumentContext";
 
@@ -51,6 +52,7 @@ export const EditorShell: React.FC = () => {
     return document.documentElement.getAttribute("data-theme") === "dark";
   });
   const [exportMenuPos, setExportMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   // Responsive check for small viewports (< 500px)
   const [isMobileScreen, setIsMobileScreen] = useState(
@@ -375,12 +377,9 @@ export const EditorShell: React.FC = () => {
             size="sm"
             variant="ghost"
             icon={<Download size={14} />}
-            onClick={(e) => {
-              const r = e.currentTarget.getBoundingClientRect();
-              setExportMenuPos({ x: r.left, y: r.bottom + 4 });
-            }}
+            onClick={() => setExportDialogOpen(true)}
           >
-            Export ▾
+            Export
           </Button>
 
           <Button
@@ -440,6 +439,13 @@ export const EditorShell: React.FC = () => {
 
       {/* Keyboard Shortcut Sheet Modal */}
       <ShortcutSheetModal open={shortcutSheetOpen} onClose={() => setShortcutSheetOpen(false)} />
+
+      {/* Export and Share Dialog */}
+      <ExportDialog
+        open={exportDialogOpen}
+        doc={doc}
+        onClose={() => setExportDialogOpen(false)}
+      />
 
       {/* Export Dropdown Menu */}
       {exportMenuPos && (

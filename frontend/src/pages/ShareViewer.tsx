@@ -16,11 +16,41 @@ export const ShareViewer: React.FC = () => {
     async function fetchDeck() {
       try {
         setLoading(true);
-        const res = await fetch(`/api/presentations/${id}`);
-        if (!res.ok) {
+        setError(null);
+
+        let data: any = null;
+        const isNumeric = /^\d+$/.test(id || "");
+
+        if (!isNumeric) {
+          // Token-based share link
+          const res = await fetch(`/api/share/${id}`);
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            if (res.status === 403 || errData.code === "revoked") {
+              throw new Error("This presentation is no longer shared or the link has expired.");
+            }
+            throw new Error("This presentation is no longer shared or does not exist.");
+          }
+          data = await res.json();
+        } else {
+          // Numeric ID: check public share route first, then direct presentation endpoint
+          let res = await fetch(`/api/share/${id}`);
+          if (res.ok) {
+            data = await res.json();
+          } else {
+            res = await fetch(`/api/presentations/${id}`);
+            if (res.ok) {
+              data = await res.json();
+            } else {
+              throw new Error("Presentation not found or no longer shared.");
+            }
+          }
+        }
+
+        if (!data || !data.presentation) {
           throw new Error("Presentation not found or no longer shared.");
         }
-        const data = await res.json();
+
         setPresentation(data.presentation);
         setSlides(data.presentation.slides || []);
       } catch (err: any) {

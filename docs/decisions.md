@@ -24,6 +24,10 @@ This log tracks architectural decisions and external package additions. Format: 
 - 2026-10-20: Server-Sent Events (SSE) streaming pipeline (`POST /api/presentations/generate`) emitting `outline`, `slide`, `progress`, and `done` events with client-side `fetch` + `ReadableStream` reader; provides responsive real-time generation progress with non-destructive Cancel abort support.
 - 2026-10-20: Atomic AI Operations Engine (`opsEngine.ts`) mapping server-emitted ops (`set_block_props`, `add_block`, `remove_block`, `move_block`, `set_slide_layout`, `add_slide`, `set_deck_theme`) into single atomic document transitions recorded directly into the Immer undo stack; ensures 1-click reversibility without state corruption.
 - 2026-10-20: Three-step Create flow (Describe -> Review Outline with live layout preview -> Generating grid) replacing legacy form; eliminates banned copy and marketing hyperbole while empowering users to edit titles, switch layouts, and reorder slides before generation.
+- 2026-10-20: Client-side PowerPoint generation using PptxGenJS (144 px = 1 inch) with native editable PowerPoint charts embedding Excel data sheets; provides authentic PPTX portability while preserving theme typography and speaker notes.
+- 2026-10-20: Standalone self-contained HTML export (.html) with inlined deck JSON, reactive variable state, interactive controls, and offline presentation stage; delivers 100% interactive presentations that run offline from file:// without server dependencies.
+- 2026-10-20: Cryptographically unguessable share tokens (secrets.token_urlsafe(16)) with instant revocation API (DELETE /api/presentations/<id>/share) returning 403 on revoked links.
+- 2026-10-20: Honest Export Dialog (ExportDialog.tsx) disclosing format fidelity (PowerPoint native charts vs snapshots for widgets, standalone HTML live reactivity).
 
 ## Dependencies Added
 - `pydantic` (v2.13.4): Presentation specification validation and schema serialization on backend; MIT.
@@ -48,3 +52,7 @@ This log tracks architectural decisions and external package additions. Format: 
 - `@tiptap/extension-underline` (v2.11.5): Underline text formatting support for Tiptap; MIT.
 - `idb-keyval` (v6.2.1): Minimal promise-based IndexedDB key-value store for offline draft persistence; Apache-2.0.
 - `jsep` (v1.6.0): JavaScript expression parser producing clean Abstract Syntax Trees without code execution; MIT.
+- `pptxgenjs` (v3.12.0): Client-side PowerPoint presentation generator with native shapes, text, tables, and editable charts; MIT.
+- `jszip` (v3.10.1): In-memory ZIP archive generation for exporting slide PNG images; MIT.
+- `html-to-image` (v1.11.11): HTML DOM canvas rasterizer for capturing slide PNG snapshots; MIT.
+- `python-pptx` (v1.0.2): Python library for inspecting and structurally asserting PowerPoint (.pptx) packages in automated test suites; MIT.

@@ -16,6 +16,8 @@ export interface DeckDocument {
   slides: Slide[];
   revision: number;
   schemaVersion: number;
+  shareToken?: string | null;
+  isShared?: boolean;
 }
 
 export type CommandType =

@@ -71,6 +71,8 @@ def init_db(database_path):
             ),
             ("schema_version", "INTEGER", "1"),
             ("revision", "INTEGER", "1"),
+            ("share_token", "TEXT", "NULL"),
+            ("is_shared", "INTEGER", "0"),
         ],
     )
 
