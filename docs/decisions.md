@@ -8,6 +8,12 @@ This log tracks architectural decisions and external package additions. Format: 
 - 2026-10-20: Single Fullscreen API portal directly on `document.body`; resolves Defect 1 where transformed parent containers clip `position: fixed` modals.
 - 2026-10-20: Neutral color token system (`#F2F2F3`, `#151517`, `#2352F5`); prevents chrome from clashing with diverse presentation slide themes.
 - 2026-10-20: Use `xField` for ChartBlock dataset category column; avoids collision with `Box.x` stage pixel coordinate in JSON dictionaries.
+- 2026-10-20: Immer inverse patches for linear undo/redo history; allows deterministic state rollbacks and redo stacks with bounded memory footprint (>= 100 steps).
+- 2026-10-20: Gesture grouping (`beginGesture` / `commitGesture` / `cancelGesture`) during canvas drag and resize; groups continuous pointer micro-movements into a single atomic undo step.
+- 2026-10-20: Pure command recipes (`commands.setDeckTitle`, `commands.addBlock`, etc.); separates state mutation logic from React component lifecycles.
+- 2026-10-20: Non-blocking Undo toasts via `useToast()` on slide deletion; eliminates disruptive modal confirms per Section 5.7.
+- 2026-10-20: Standard three-panel desktop editor shell (40px top bar, 200px slide rail, flex canvas, 300px inspector); replaces legacy 5-column layout and completely removes `styles.css`.
+- 2026-10-20: First-slide live thumbnail rendering in deck cards using `<SlideStage mode="thumbnail">`; satisfies Section 6.5 workspace requirement without server-side rasterization.
 
 ## Dependencies Added
 - `pydantic` (v2.13.4): Presentation specification validation and schema serialization on backend; MIT.
