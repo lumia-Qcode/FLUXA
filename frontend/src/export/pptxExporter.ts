@@ -1,7 +1,7 @@
 import PptxGenJS from "pptxgenjs";
 import { Block, Slide } from "../../../shared/spec";
 import { DeckDocument } from "../editor/store/types";
-import { getTheme, Theme } from "../rendering/themes";
+import { resolveDeckTheme, Theme } from "../rendering/themes";
 import { buildReactiveScope } from "../runtime/reactiveEngine";
 
 // Stage 1920x1080 px -> PowerPoint 13.333x7.5 inches (144 px = 1 inch)
@@ -127,7 +127,7 @@ export async function exportToPptx(
   pptx.title = doc.title || "FLUXA Presentation";
 
   const themeId = doc.theme?.themeId || "default";
-  const theme: Theme = getTheme(themeId);
+  const theme: Theme = resolveDeckTheme(themeId, doc.brand, (doc.theme as any)?.fontPairing);
   const fallbackFont = theme.pptxFallbackFont || "Arial";
 
   const reactiveScope = buildReactiveScope(doc.datasets || {}, doc.variables || {});

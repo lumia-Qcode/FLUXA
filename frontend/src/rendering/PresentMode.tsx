@@ -1,8 +1,24 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Dataset, Slide, Variable } from "../../../shared/spec";
 import { SlideStage } from "./SlideStage";
 import { getTheme, Theme } from "./themes";
+import {
+  LiveSessionState,
+  LivePoll,
+  startLiveSession,
+  syncSlideIndex,
+  pingLiveSession,
+  closeLivePoll,
+} from "../components/live/liveApi";
+import { LiveMeetingModal } from "../components/live/LiveMeetingModal";
+import { LiveMeetingQRCodeOverlay } from "../components/live/LiveMeetingQRCodeOverlay";
+import { LivePollOverlay } from "../components/live/LivePollOverlay";
+import { LiveCommentsDrawer } from "../components/live/LiveCommentsDrawer";
+import { AudienceChoice } from "../components/live/AudienceChoice";
+import { ResumeElsewhere } from "../components/live/ResumeElsewhere";
+import { PresenterVoice } from "../presenter/PresenterVoice";
+import { useSpeechEngine } from "../presenter/speech";
 
 export interface PresentModeProps {
   slides: Slide[] | any[];
@@ -16,7 +32,7 @@ export interface PresentModeProps {
 }
 
 export const PresentMode: React.FC<PresentModeProps> = ({
-  slides,
+  slides: allSlides,
   initialSlideIndex = 0,
   theme,
   datasets,
@@ -25,7 +41,11 @@ export const PresentMode: React.FC<PresentModeProps> = ({
   onClose,
   onControlChange,
 }) => {
+  // Slides skipped for this talk only (voice "I have 5 minutes left"); the deck is untouched.
+  const [skipIds, setSkipIds] = useState<Set<string>>(new Set());
+  const slides = useMemo(() => allSlides.filter((s: any) => !skipIds.has(s.id)), [allSlides, skipIds]);
   const [currentIndex, setCurrentIndex] = useState(initialSlideIndex);
+  const speech = useSpeechEngine("en-US");
   const [buildStep, setBuildStep] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [isBlanked, setIsBlanked] = useState(false);
@@ -34,6 +54,14 @@ export const PresentMode: React.FC<PresentModeProps> = ({
   const totalSlides = slides.length;
   const currentSlide = slides[currentIndex] || slides[0];
   const activeTheme = theme || getTheme();
+
+  // Live session state
+  const [liveSession, setLiveSession] = useState<LiveSessionState | null>(null);
+  const [isLiveModalOpen, setIsLiveModalOpen] = useState<boolean>(false);
+  const [isCommentsOpen, setIsCommentsOpen] = useState<boolean>(false);
+  const [attendeeCount, setAttendeeCount] = useState<number>(1);
+  const [activePoll, setActivePoll] = useState<LivePoll | null>(null);
+  const [showOnScreenQR, setShowOnScreenQR] = useState<boolean>(false);
 
   const channelRef = useRef<BroadcastChannel | null>(null);
 
@@ -70,7 +98,7 @@ export const PresentMode: React.FC<PresentModeProps> = ({
     };
   }, [presentationId, currentIndex, buildStep, variables, datasets, slides]);
 
-  // Whenever state changes, broadcast to presenter window
+  // Whenever state changes, broadcast to presenter window and live session
   useEffect(() => {
     if (channelRef.current) {
       channelRef.current.postMessage({
@@ -82,7 +110,49 @@ export const PresentMode: React.FC<PresentModeProps> = ({
         slides,
       });
     }
-  }, [currentIndex, buildStep, variables, datasets, slides]);
+    if (liveSession?.session_id) {
+      syncSlideIndex(liveSession.session_id, currentIndex, liveSession.host_token).catch(() => {});
+    }
+  }, [currentIndex, buildStep, variables, datasets, slides, liveSession]);
+
+  const handleStartOrOpenLive = async () => {
+    if (liveSession) {
+      setIsLiveModalOpen(true);
+      return;
+    }
+    if (!presentationId) return;
+    try {
+      const sess = await startLiveSession(presentationId, "Presenter");
+      setLiveSession(sess);
+      setIsLiveModalOpen(true);
+    } catch (err) {
+      console.error("Failed to start live session", err);
+    }
+  };
+
+  // Heartbeat for live session
+  useEffect(() => {
+    if (!liveSession?.session_id) return;
+    let isMounted = true;
+
+    async function ping() {
+      try {
+        const state = await pingLiveSession(liveSession!.session_id);
+        if (!isMounted) return;
+        setAttendeeCount(state.participants_count || 1);
+        setActivePoll(state.active_poll || null);
+      } catch (err) {
+        // silent
+      }
+    }
+
+    ping();
+    const interval = setInterval(ping, 2500);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [liveSession?.session_id]);
 
   // Request Fullscreen on mount
   useEffect(() => {
@@ -154,6 +224,17 @@ export const PresentMode: React.FC<PresentModeProps> = ({
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target?.isContentEditable ||
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+
       if (e.key === "Escape") {
         onClose();
       } else if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") {
@@ -315,6 +396,80 @@ export const PresentMode: React.FC<PresentModeProps> = ({
 
         <div style={{ width: 1, height: 16, background: "rgba(255,255,255,0.2)", margin: "0 4px" }} />
 
+        {/* Live Broadcast Pill */}
+        {presentationId && (
+          <button
+            type="button"
+            onClick={handleStartOrOpenLive}
+            style={{
+              background: liveSession ? "rgba(16, 185, 129, 0.15)" : "rgba(255, 255, 255, 0.08)",
+              border: liveSession ? "1px solid rgba(16, 185, 129, 0.4)" : "1px solid rgba(255, 255, 255, 0.15)",
+              color: liveSession ? "#34D399" : "#E2E8F0",
+              cursor: "pointer",
+              fontSize: "12px",
+              fontWeight: 600,
+              padding: "4px 12px",
+              borderRadius: "16px",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              transition: "all 0.15s ease",
+            }}
+          >
+            <span
+              style={{
+                width: "6px",
+                height: "6px",
+                borderRadius: "50%",
+                background: liveSession ? "#10B981" : "#94A3B8",
+                boxShadow: liveSession ? "0 0 8px #10B981" : "none",
+              }}
+            />
+            <span>{liveSession ? `Live Hub (${attendeeCount})` : "Go Live"}</span>
+          </button>
+        )}
+
+        {/* #3 Audience-Controlled: let the audience vote on what comes next */}
+        {liveSession?.session_id && (
+          <AudienceChoice
+            slides={slides}
+            currentIndex={currentIndex}
+            sessionId={liveSession.session_id}
+            activePoll={activePoll}
+            onPollCreated={(poll) => setActivePoll(poll)}
+            onPollClosed={() => setActivePoll(null)}
+            onGoTo={(i) => {
+              setCurrentIndex(i);
+              setBuildStep(0);
+            }}
+          />
+        )}
+
+        {/* Voice commands + #15 Autopilot */}
+        <PresenterVoice
+          engine={speech}
+          slides={slides}
+          allSlides={allSlides}
+          currentIndex={currentIndex}
+          presentationId={presentationId}
+          live={liveSession}
+          onGoTo={(i) => {
+            setCurrentIndex(Math.max(0, Math.min(slides.length - 1, i)));
+            setBuildStep(0);
+          }}
+          onSkip={(ids) => {
+            const currentId = slides[currentIndex]?.id;
+            const next = new Set(ids.filter((id) => id !== currentId));
+            setSkipIds(next);
+            const remaining = allSlides.filter((s: any) => !next.has(s.id));
+            const idx = remaining.findIndex((s: any) => s.id === currentId);
+            setCurrentIndex(idx >= 0 ? idx : 0);
+          }}
+        />
+
+        {/* #5 Instant Recovery: continue on another device */}
+        {presentationId && <ResumeElsewhere presentationId={presentationId} slideId={currentSlide?.id} />}
+
         {/* Presenter View Button */}
         {presentationId && (
           <button
@@ -371,6 +526,56 @@ export const PresentMode: React.FC<PresentModeProps> = ({
           }}
         />
       </div>
+
+      {/* Live Meeting Moderator Modal */}
+      {liveSession && (
+        <LiveMeetingModal
+          session={liveSession}
+          currentSlideIndex={currentIndex}
+          isOpen={isLiveModalOpen}
+          onClose={() => setIsLiveModalOpen(false)}
+          onSessionEnded={() => setLiveSession(null)}
+          onPollCreated={(poll) => setActivePoll(poll)}
+          onPollClosed={() => setActivePoll(null)}
+          onToggleOnScreenQR={() => setShowOnScreenQR((prev) => !prev)}
+          isOnScreenQREnabled={showOnScreenQR}
+        />
+      )}
+
+      {/* On-Screen QR Code Badge for Room Audience */}
+      {liveSession && showOnScreenQR && (
+        <LiveMeetingQRCodeOverlay
+          presentationId={liveSession.presentation_id}
+          sessionId={liveSession.session_id}
+          meetingCode={liveSession.meeting_code}
+          onClose={() => setShowOnScreenQR(false)}
+        />
+      )}
+
+      {/* Live Poll Overlay for Presenter view */}
+      {liveSession && activePoll && (
+        <LivePollOverlay
+          poll={activePoll}
+          isModerator={true}
+          onVote={async () => {}}
+          onClosePoll={async () => {
+            if (activePoll) await closeLivePoll(activePoll.id);
+            setActivePoll(null);
+          }}
+        />
+      )}
+
+      {/* Live Comments and Reactions Drawer */}
+      {liveSession && (
+        <LiveCommentsDrawer
+          sessionId={liveSession.session_id}
+          participantId={liveSession.host_token}
+          participantName="Presenter (Host)"
+          currentSlideIndex={currentIndex}
+          isOpen={isCommentsOpen}
+          onToggle={() => setIsCommentsOpen(!isCommentsOpen)}
+        />
+      )}
     </div>,
     document.body
   );

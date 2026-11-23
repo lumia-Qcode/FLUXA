@@ -1,16 +1,22 @@
 """FT-12 - API routes for AI presentation generation (T24-T27) and streaming pipeline."""
 
 import json
-import time
+import logging
 
 from flask import Blueprint, Response, current_app, request
 
-from app.ai import AIError, compile_semantic_slide, get_provider
+from app.ai import AIError, compile_semantic_slide, gateway, get_provider
+from app.ai.deck_writer import GenerationUnavailable
+from app.ai.typography import with_pairing
+from app.auth import current_owner
 from app.config import Config
-from app.services.generation_service import (
-    generate_structured_slides,
-    save_generated_presentation,
+from app.services.deck_generation import (
+    build_deck,
+    research_and_outline,
+    run_with_events,
+    slide_events,
 )
+from app.services.generation_service import save_generated_presentation
 from app.services.outline_service import generate_outline
 from app.services.slide_parser import AIResponseError
 
@@ -48,7 +54,12 @@ def read_request():
     if not all(isinstance(v, str) for v in (audience, language, title)):
         return None, ({"error": "'audience', 'language' and 'title' must be strings."}, 400)
 
+    brand_id = data.get("brand_id")
+    if brand_id is not None and (not isinstance(brand_id, int) or isinstance(brand_id, bool)):
+        return None, ({"error": "'brand_id' must be a number."}, 400)
+
     return {
+        "brand_id": brand_id,
         "topic": topic.strip(),
         "slide_count": slide_count,
         "audience": audience.strip(),
@@ -79,6 +90,7 @@ def run_ai(action):
 
 
 @generation_bp.post("/generate/outline")
+@gateway.feature("outline.generate")
 def generate_outline_route():
     """T24 + T25: send prompt to AI and return outline with slide intents."""
     values, error = read_request()
@@ -86,17 +98,20 @@ def generate_outline_route():
         return error
 
     provider = get_provider()
-    if provider.is_configured:
+    if provider.is_configured and provider.name != "mock":
         try:
-            outline = provider.generate_outline(
-                values["topic"],
-                values["slide_count"],
-                values["audience"],
-                values["language"],
+            # Same request from the same organisation within 24 h: reuse the researched outline
+            # (saves the free daily quota). Outlines that fell back are never cached.
+            outline = gateway.cached(
+                "outline.generate",
+                {k: values[k] for k in ("topic", "slide_count", "audience", "language")},
+                lambda: research_and_outline(provider, values),
             )
             return {"outline": outline}, 200
-        except Exception as e:
-            return {"error": str(e)}, 502
+        except GenerationUnavailable as exc:
+            return {"error": str(exc), "code": "unavailable"}, 503
+        except AIError as exc:
+            return {"error": str(exc), "code": exc.code}, 503 if exc.code == "not_configured" else 502
 
     outline, error = run_ai(
         lambda: generate_outline(
@@ -127,142 +142,194 @@ def generate_presentation_route():
             return {"error": "AI service is not configured.", "code": "not_configured"}, 503
 
         db_path = current_app.config["DATABASE_PATH"]
+        owner = current_owner()  # captured now: the streamed generator runs outside the request
+
+        def sse(event: str, data) -> str:
+            return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
         def stream_generation():
             try:
-                # 1. Resolve Outline
-                outline_data = values.get("outline")
-                if not outline_data or "slides" not in outline_data:
-                    outline_data = provider.generate_outline(
-                        values["topic"],
-                        values["slide_count"],
-                        values["audience"],
-                        values["language"],
-                    )
-                yield f"event: outline\ndata: {json.dumps(outline_data)}\n\n"
-
-                slides_list = outline_data.get("slides", [])
-                total = len(slides_list)
-                compiled_slides = []
-                all_datasets = {}
-
-                # 2. Generate and compile each slide
-                for idx, item in enumerate(slides_list, start=1):
-                    semantic = provider.generate_slide(
-                        item,
-                        {
-                            "title": values["title"] or outline_data.get("title", ""),
-                            "description": values["topic"],
-                        },
-                    )
-                    slide_spec, ds = compile_semantic_slide(semantic, idx)
-                    if ds:
-                        all_datasets.update(ds)
-
-                    slide_record = {
-                        "slide_order": idx,
-                        "title": item.get("title", f"Slide {idx}"),
-                        "content": "- " + "\n- ".join(semantic.get("bullets", ["Point 1"])),
-                        "spec": slide_spec,
-                    }
-                    compiled_slides.append(slide_record)
-
-                    # Emit slide arrived event
-                    yield f"event: slide\ndata: {json.dumps({'index': idx - 1, 'slide': slide_record, 'datasets': ds})}\n\n"
-                    # Emit progress event
-                    yield f"event: progress\ndata: {json.dumps({'current': idx, 'total': total})}\n\n"
-                    time.sleep(0.15)
-
-                # 3. Save to database
-                theme_dict = None
-                if values.get("theme"):
-                    theme_dict = (
-                        {"themeId": values["theme"]}
-                        if isinstance(values["theme"], str)
-                        else values["theme"]
-                    )
-
-                presentation = save_generated_presentation(
-                    db_path,
-                    title=values["title"] or outline_data.get("title", values["topic"]),
-                    description=values["topic"],
-                    slides=compiled_slides,
-                    theme=theme_dict,
-                    datasets=all_datasets,
-                )
-
-                yield f"event: done\ndata: {json.dumps({'presentation': presentation})}\n\n"
+                if provider.name == "mock":
+                    yield from _mock_stream(provider, values, db_path, owner, sse)
+                    return
+                yield sse("research_start", {"status": "Planning research and searching sources", "topic": values["topic"]})
+                user_outline = values.get("outline")
+                result = None
+                for kind, payload in run_with_events(lambda progress: build_deck(provider, values, user_outline, progress)):
+                    if kind == "progress":
+                        message, extra = payload
+                        yield sse("text", {"delta": f"[PROGRESS: {message}]", "detail": extra})
+                    else:
+                        result = payload
+                dossier = result["dossier"]
+                yield sse("research_complete", {
+                    "status": _research_status(dossier),
+                    "citations": dossier.get("citations", []),
+                    "summary": "",
+                    "research_mode": dossier.get("research_mode"),
+                    "trace": {k: v for k, v in (dossier.get("research_trace") or {}).items() if k != "queries"},
+                    "limitations": dossier.get("limitations", []),
+                })
+                yield sse("outline", {k: v for k, v in result["outline"].items() if k != "research_dossier"})
+                total = len(result["slides"])
+                for ev in slide_events(result["slides"], result["datasets"]):
+                    yield sse("slide", ev)
+                    yield sse("progress", {"current": ev["index"] + 1, "total": total})
+                presentation = _save(db_path, values, result["outline"], result["slides"], result["datasets"], dossier, owner)
+                yield sse("done", {"presentation": presentation, "report": _public_report(result["report"])})
+            except GenerationUnavailable as e:
+                yield sse("error", {"error": str(e), "code": "unavailable"})
+            except AIError as e:
+                yield sse("error", {"error": str(e), "code": e.code})
             except Exception as e:
-                yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+                logging.getLogger(__name__).exception("deck generation failed")
+                yield sse("error", {"error": f"Generation failed: {e}"})
 
-        return Response(stream_generation(), mimetype="text/event-stream")
+        def stream_with_gateway():
+            with gateway.session("deck.generate", owner["org_id"], owner["owner_id"], db_path):
+                yield from gateway.with_status_on_done(stream_generation())
 
-    # If outline was explicitly provided from Step 2 of modern Create flow:
-    if values.get("outline"):
-        provider = get_provider()
-        outline_data = values["outline"]
-        compiled_slides = []
-        all_datasets = {}
-        for idx, item in enumerate(outline_data.get("slides", []), start=1):
-            semantic = provider.generate_slide(
-                item,
-                {
-                    "title": values["title"] or outline_data.get("title", ""),
-                    "description": values["topic"],
-                },
-            )
-            slide_spec, ds = compile_semantic_slide(semantic, idx)
-            if ds:
-                all_datasets.update(ds)
-            compiled_slides.append(
-                {
-                    "slide_order": idx,
-                    "title": item.get("title", f"Slide {idx}"),
-                    "content": "- " + "\n- ".join(semantic.get("bullets", ["Point 1"])),
-                    "spec": slide_spec,
-                }
-            )
-        presentation = save_generated_presentation(
-            current_app.config["DATABASE_PATH"],
-            title=values["title"] or outline_data.get("title", values["topic"]),
-            description=values["topic"],
-            slides=compiled_slides,
-            theme={"themeId": values["theme"]}
-            if isinstance(values.get("theme"), str)
-            else values.get("theme"),
-            datasets=all_datasets,
+        return Response(stream_with_gateway(), mimetype="text/event-stream")
+
+    # Non-stream Generation Route (used by WorkspacePage and direct API)
+    with gateway.request_session("deck.generate"):
+        body, code = _generate_presentation_json(values)
+        body["ai"] = gateway.status()
+        return body, code
+
+
+def _generate_presentation_json(values):
+    provider = get_provider()
+    if provider.name == "mock":
+        return _mock_json(provider, values)
+    try:
+        result = build_deck(provider, values, values.get("outline"))
+    except GenerationUnavailable as exc:
+        return {"error": str(exc), "code": "unavailable"}, 503
+    except AIError as exc:
+        return {"error": str(exc), "code": exc.code}, 503 if exc.code == "not_configured" else 502
+    presentation = _save(current_app.config["DATABASE_PATH"], values, result["outline"], result["slides"],
+                         result["datasets"], result["dossier"], current_owner())
+    return {"message": "Presentation generated successfully", "presentation": presentation,
+            "report": _public_report(result["report"])}, 201
+
+
+def _theme(values):
+    theme = {"themeId": values["theme"]} if isinstance(values.get("theme"), str) else values.get("theme") or {"themeId": "midnight"}
+    return with_pairing(theme, values["topic"])
+
+
+def _apply_brand(db_path, presentation, brand_id, org_id):
+    """Pin the new deck to the chosen brand's active version (ignored if it isn't this org's)."""
+    if not brand_id or org_id is None or not presentation:
+        return presentation
+    from app.brand.store import deck_brand
+    from app.database import get_connection
+
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT active_version_id FROM brands WHERE id = ? AND org_id = ? AND status != 'archived'", (brand_id, org_id)
+        ).fetchone()
+        if not row or not row["active_version_id"]:
+            return presentation
+        conn.execute(
+            "UPDATE presentations SET brand_id = ?, brand_version_id = ? WHERE id = ?",
+            (brand_id, row["active_version_id"], presentation["id"]),
         )
-        return {
-            "message": "Presentation generated successfully",
-            "presentation": presentation,
-        }, 201
+        conn.commit()
+        presentation["brand"] = deck_brand(conn, org_id, brand_id, row["active_version_id"])
+        return presentation
+    finally:
+        conn.close()
 
-    # Standard / legacy generation pipeline
-    generated, error = run_ai(
-        lambda: generate_structured_slides(
-            values["topic"],
-            values["slide_count"],
-            values["audience"],
-            values["language"],
-        )
-    )
-    if error:
-        return error
 
-    presentation = save_generated_presentation(
-        current_app.config["DATABASE_PATH"],
-        title=values["title"] or generated["title"],
+def _save(db_path, values, outline, slides, datasets, dossier, owner):
+    presentation = _save_deck(db_path, values, outline, slides, datasets, dossier, owner)
+    return _apply_brand(db_path, presentation, values.get("brand_id"), owner.get("org_id"))
+
+
+def _save_deck(db_path, values, outline, slides, datasets, dossier, owner):
+    return save_generated_presentation(
+        db_path,
+        title=values["title"] or outline.get("title", values["topic"]),
         description=values["topic"],
-        slides=generated["slides"],
+        slides=slides,
+        theme=_theme(values),
+        datasets=datasets,
+        variables={"research_dossier": dossier} if dossier else None,
+        **owner,
     )
 
+
+def _research_status(dossier):
+    trace = dossier.get("research_trace") or {}
+    if not dossier.get("sources"):
+        return "No sources could be retrieved; the slides contain no citations or figures."
+    return (
+        f"Research complete: {trace.get('sources_kept', 0)} sources kept from {trace.get('documents_retrieved', 0)} "
+        f"documents across {trace.get('successful_queries', 0)} of {trace.get('query_count', 0)} searches"
+    )
+
+
+def _public_report(report):
     return {
-        "message": "Presentation generated successfully",
-        "presentation": presentation,
-    }, 201
+        "removed_claims": len(report.get("removed_claims") or []),
+        "dropped_visuals": len(report.get("dropped_visuals") or []),
+        "repaired_slides": [r.get("index") for r in report.get("repaired_slides") or []],
+        "extractive_slides": report.get("extractive_slides") or [],
+        "images": report.get("images") or {},
+        "model_errors": len(report.get("model_errors") or []),
+    }
+
+
+def _mock_slides(provider, values, outline_data):
+    """Offline demo and tests: the mock provider's canned content, compiled as before."""
+    slides_list = outline_data.get("slides", [])
+    compiled, datasets = [], {}
+    used_3d: set = set()
+    last_3d = [0]
+    for idx, item in enumerate(slides_list, start=1):
+        item = {**item, "_index": idx} if isinstance(item, dict) else item
+        semantic = provider.generate_slide(item, {"title": values["title"] or outline_data.get("title", ""), "description": values["topic"]})
+        spec, ds = compile_semantic_slide(semantic, idx, used_3d_models=used_3d, total_slides=len(slides_list), last_3d_slide=last_3d)
+        datasets.update(ds or {})
+        bullets = semantic.get("bullets") or [item.get("title", "")]
+        compiled.append({"slide_order": idx, "title": item.get("title", f"Slide {idx}"),
+                         "content": "- " + "\n- ".join(bullets), "spec": spec})
+    return compiled, datasets
+
+
+def _mock_outline(provider, values):
+    outline = values.get("outline")
+    if not outline or "slides" not in outline:
+        outline = provider.generate_outline(values["topic"], values["slide_count"], values["audience"], values["language"])
+    return outline
+
+
+def _mock_stream(provider, values, db_path, owner, sse):
+    yield sse("research_start", {"status": "Offline demo mode: no research is performed", "topic": values["topic"]})
+    outline = _mock_outline(provider, values)
+    yield sse("research_complete", {"status": "Offline demo mode: content is sample data", "citations": [], "summary": "", "research_mode": "mock"})
+    yield sse("outline", outline)
+    compiled, datasets = _mock_slides(provider, values, outline)
+    for ev in slide_events(compiled, datasets):
+        yield sse("slide", ev)
+        yield sse("progress", {"current": ev["index"] + 1, "total": len(compiled)})
+    presentation = _save(db_path, values, outline, compiled, datasets, outline.get("research_dossier") or {}, owner)
+    yield sse("done", {"presentation": presentation})
+
+
+def _mock_json(provider, values):
+    outline = _mock_outline(provider, values)
+    compiled, datasets = _mock_slides(provider, values, outline)
+    presentation = _save(current_app.config["DATABASE_PATH"], values, outline, compiled, datasets,
+                         outline.get("research_dossier") or {}, current_owner())
+    return {"message": "Presentation generated successfully", "presentation": presentation}, 201
 
 
 @generation_bp.post("/<int:presentation_id>/copilot")
+@gateway.feature("copilot.chat")
 def copilot_route(presentation_id):
     """Conversational AI Copilot to edit, add, delete, or discuss slides."""
     data = request.get_json(silent=True) or {}
@@ -289,6 +356,7 @@ def copilot_route(presentation_id):
 
 
 @generation_bp.post("/<int:presentation_id>/slides/<int:slide_id>/ai-enhance")
+@gateway.feature("slide.enhance")
 def ai_enhance_route(presentation_id, slide_id):
     """Enrich a slide's key points, metrics, and visual components using AI."""
     data = request.get_json(silent=True) or {}

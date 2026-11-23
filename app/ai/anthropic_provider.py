@@ -217,6 +217,15 @@ class AnthropicProvider(BaseProvider):
         except Exception as e:
             raise InvalidOutputError(f"Failed to parse Anthropic response: {e}")
 
+    def complete_json(self, system: str, user: str, max_tokens: int = 1500) -> Any:
+        """Free-form JSON answer through a forced tool whose input is the answer object."""
+        tool = {
+            "name": "respond",
+            "description": "Return the answer as the JSON object described in the instructions.",
+            "input_schema": {"type": "object", "additionalProperties": True},
+        }
+        return self._call(system, [{"role": "user", "content": user}], [tool], "respond")
+
     def generate_outline(
         self,
         topic: str,

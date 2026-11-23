@@ -2,6 +2,7 @@ import React from "react";
 import { LayoutId } from "../../../../shared/spec";
 import { LAYOUTS } from "../../rendering/layouts";
 import { THEMES } from "../../rendering/themes";
+import { FONT_PAIRINGS, fontStack } from "../../rendering/typography";
 import { Field } from "../../ui/Field";
 import { commands } from "../store/documentStore";
 import { useDocument } from "../store/DocumentContext";
@@ -136,6 +137,50 @@ export const SlideInspector: React.FC = () => {
                     />
                   ))}
                 </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Typography pairing for the whole deck (independent of the colour theme) */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px", borderTop: "1px solid var(--line)", paddingTop: "16px" }}>
+        <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--ink-2)", letterSpacing: "0.02em" }}>
+          TYPOGRAPHY
+        </span>
+        <div role="radiogroup" aria-label="Deck typography" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {[{ id: "", name: "Theme default", heading: "", body: "", mood: "Use the colour theme's own fonts" } as any, ...FONT_PAIRINGS].map((p) => {
+            const active = ((doc.theme as any).fontPairing || "") === p.id;
+            return (
+              <button
+                key={p.id || "default"}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() =>
+                  execute("Change typography", (draft) => {
+                    if (p.id) (draft.theme as any).fontPairing = p.id;
+                    else delete (draft.theme as any).fontPairing;
+                  })
+                }
+                style={{
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: "4px",
+                  border: active ? "1px solid var(--signal)" : "1px solid var(--line)",
+                  background: active ? "var(--signal-weak)" : "var(--bg-panel)",
+                  cursor: "pointer",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "2px",
+                }}
+              >
+                <span style={{ fontFamily: p.heading ? fontStack(p.heading) : "inherit", fontSize: "16px", fontWeight: 700, color: "var(--ink)" }}>
+                  {p.name}
+                </span>
+                <span style={{ fontFamily: p.body ? fontStack(p.body) : "inherit", fontSize: "12px", color: "var(--ink-2)" }}>
+                  {p.heading ? `${p.heading} + ${p.body}. ` : ""}{p.mood}
+                </span>
               </button>
             );
           })}

@@ -7,6 +7,54 @@ from app.database import get_connection
 from app.models.presentation import Slide
 from app.spec.models import SlideModel
 
+logger = __import__("logging").getLogger(__name__)
+MAX_BLOCKS = 200
+# Block types the renderer can draw (frontend/src/rendering/blocks/BlockRenderer.tsx).
+RENDERABLE_TYPES = {
+    "text", "shape", "image", "icon", "chart", "kpi", "table", "steps", "timeline", "comparison", "quote",
+    "control", "embed", "html", "tabs", "citation", "funnel", "swot", "market-size", "tam-sam-som", "model3d", "3d",
+}
+
+
+def check_slide_spec(spec):
+    """Return validation errors for a slide spec, or None if it may be saved.
+
+    The strict schema (SlideModel) predates parts of what the generator writes (citation
+    blocks, newer layouts, text KPI deltas, background without colour), and rejecting those
+    discarded every edit to a generated slide. A spec that fails the strict check is still
+    accepted when its structure is sound, and stored exactly as sent.
+    """
+    try:
+        SlideModel.model_validate(spec)
+        return None
+    except ValidationError as e:
+        strict_errors = e.errors()
+    problems = []
+    if not isinstance(spec, dict):
+        return [{"loc": [], "msg": "The slide must be a JSON object."}]
+    blocks = spec.get("blocks", [])
+    if not isinstance(blocks, list):
+        problems.append({"loc": ["blocks"], "msg": "blocks must be a list"})
+    elif len(blocks) > MAX_BLOCKS:
+        problems.append({"loc": ["blocks"], "msg": f"at most {MAX_BLOCKS} blocks per slide"})
+    else:
+        for i, b in enumerate(blocks):
+            if not isinstance(b, dict) or not b.get("id") or not isinstance(b.get("type"), str):
+                problems.append({"loc": ["blocks", i], "msg": "each block needs an id and a type"})
+                continue
+            if b["type"] not in RENDERABLE_TYPES:
+                problems.append({"loc": ["blocks", i, "type"], "msg": f"unknown block type '{b['type']}'"})
+            for k in ("x", "y", "w", "h"):
+                if k in b and b[k] is not None and not isinstance(b[k], (int, float)):
+                    problems.append({"loc": ["blocks", i, k], "msg": "must be a number"})
+            for k in ("w", "h"):
+                if isinstance(b.get(k), (int, float)) and b[k] <= 0:
+                    problems.append({"loc": ["blocks", i, k], "msg": "must be greater than 0"})
+    if problems:
+        return problems
+    logger.info("slide spec accepted outside the strict schema (%d differences)", len(strict_errors))
+    return None
+
 slide_bp = Blueprint("slides", __name__)
 
 
@@ -75,10 +123,9 @@ def add_slide(presentation_id):
 
     # Validate slide spec if provided
     if spec is not None:
-        try:
-            SlideModel.model_validate(spec)
-        except ValidationError as e:
-            return {"error": "Invalid slide specification", "details": e.errors()}, 422
+        errors = check_slide_spec(spec)
+        if errors:
+            return {"error": "Invalid slide specification", "details": errors}, 422
 
     connection = get_connection(current_app.config["DATABASE_PATH"])
 
@@ -166,10 +213,9 @@ def update_slide(presentation_id, slide_id):
     if "spec" in data:
         spec = data["spec"]
         if spec is not None:
-            try:
-                SlideModel.model_validate(spec)
-            except ValidationError as e:
-                return {"error": "Invalid slide specification", "details": e.errors()}, 422
+            errors = check_slide_spec(spec)
+            if errors:
+                return {"error": "Invalid slide specification", "details": errors}, 422
             fields.append("spec = ?")
             values.append(json.dumps(spec))
         else:

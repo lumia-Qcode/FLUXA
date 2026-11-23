@@ -35,11 +35,8 @@ def generate_ai_response(prompt: str, system_prompt: str = "") -> str:
 
     configured = [m for m in [Config.OPENROUTER_MODEL, Config.OPENROUTER_FALLBACK_MODEL] if m]
     default_fallbacks = [
+        "minimax/minimax-m3.1-flash:free",
         "openrouter/free",
-        "nvidia/nemotron-3.5-lightning:free",
-        "google/gemma-4-31b-it:free",
-        "poolside/laguna-xs-2.1:free",
-        "google/gemini-2.5-flash",
     ]
     models = []
     for m in configured + default_fallbacks:
@@ -59,14 +56,20 @@ def generate_ai_response(prompt: str, system_prompt: str = "") -> str:
                 json={
                     "model": model,
                     "messages": messages,
+                    "max_tokens": 800,
                 },
-                timeout=60,
+                timeout=30,
             )
 
             response.raise_for_status()
             data = response.json()
 
-            content = data["choices"][0]["message"]["content"]
+            choices = data.get("choices", [])
+            if not choices:
+                continue
+
+            msg = choices[0].get("message", {})
+            content = msg.get("content") or msg.get("reasoning") or ""
 
             if not isinstance(content, str) or not content.strip():
                 raise ValueError("The AI model returned an empty response.")

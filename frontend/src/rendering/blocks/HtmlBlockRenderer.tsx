@@ -17,7 +17,24 @@ export const HtmlBlockRenderer: React.FC<Props> = ({
   interactive = true,
 }) => {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const blockId = block.id;
+  // The sandboxed iframe is a separate document, so the slide's theme variables don't reach it.
+  // Read them from the slide and pass them in, so widgets (and AI demos) use the deck's colours.
+  const [themeVars, setThemeVars] = React.useState("");
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const cs = getComputedStyle(el);
+    const names = ["--theme-bg", "--theme-text", "--theme-primary", "--theme-secondary", "--theme-accent",
+      "--theme-muted", "--theme-font-body", "--theme-font-heading", "--theme-chart-1", "--theme-chart-2", "--theme-chart-3"];
+    const css = names
+      .map((n) => [n, cs.getPropertyValue(n).trim()])
+      .filter(([, v]) => v && !/[<>{};]/.test(v))
+      .map(([n, v]) => `${n}: ${v};`)
+      .join(" ");
+    setThemeVars(css);
+  }, []);
 
   const flatVariables = React.useMemo(() => {
     const flat: Record<string, any> = {};
@@ -78,6 +95,7 @@ export const HtmlBlockRenderer: React.FC<Props> = ({
           <meta charset="utf-8">
           <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:;">
           <style>
+            :root { ${themeVars} }
             html, body {
               margin: 0;
               padding: 0;
@@ -104,7 +122,7 @@ export const HtmlBlockRenderer: React.FC<Props> = ({
         </body>
       </html>
     `;
-  }, [block.code?.html, block.code?.css, block.code?.js, blockId]);
+  }, [block.code?.html, block.code?.css, block.code?.js, blockId, themeVars]);
 
   // Listen for postMessage from the sandboxed iframe
   useEffect(() => {
@@ -149,6 +167,7 @@ export const HtmlBlockRenderer: React.FC<Props> = ({
         overflow: "hidden",
       }}
       className="block-html-widget"
+      ref={containerRef}
     >
       <iframe
         ref={iframeRef}

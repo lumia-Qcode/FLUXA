@@ -1,13 +1,46 @@
 import json
 
-from flask import Blueprint, current_app, request
+from flask import Blueprint, current_app, g, request
 from pydantic import ValidationError
 
+from app.auth import can_delete_deck
+from app.brand.store import deck_brand, deck_brand_for
 from app.database import get_connection
 from app.models.presentation import Presentation, Slide
 from app.spec.models import Dataset, DeckSettings, Variable
 
 presentation_bp = Blueprint("presentations", __name__)
+
+_COLUMN_TYPES = {"string": "text", "str": "text", "category": "text", "int": "number", "float": "number",
+                 "numeric": "number", "datetime": "date"}
+
+
+def normalize_datasets(datasets):
+    """Repair datasets written by older generator versions so their decks can be saved:
+    columns used `name` instead of `label` and type "string" instead of "text"."""
+    if not isinstance(datasets, dict):
+        return datasets
+    out = {}
+    for key, ds in datasets.items():
+        if isinstance(ds, dict) and isinstance(ds.get("columns"), list):
+            ds = dict(ds)
+            cols = []
+            for col in ds["columns"]:
+                if isinstance(col, dict):
+                    col = dict(col)
+                    if "label" not in col:
+                        col["label"] = str(col.pop("name", None) or col.get("key") or "")
+                    else:
+                        col.pop("name", None)
+                    t = str(col.get("type") or "text").lower()
+                    col["type"] = _COLUMN_TYPES.get(t, t if t in ("text", "number", "date") else "text")
+                cols.append(col)
+            ds["columns"] = cols
+            ds.setdefault("id", key)
+            ds.setdefault("name", key)
+            ds.setdefault("source", "ai-estimate")
+        out[key] = ds
+    return out
 
 
 def parse_json_safely(val, default):
@@ -61,8 +94,8 @@ def create_presentation():
     try:
         cursor = connection.execute(
             """
-            INSERT INTO presentations (title, description, theme, datasets, variables, settings, schema_version, revision)
-            VALUES (?, ?, ?, ?, ?, ?, 1, 1)
+            INSERT INTO presentations (title, description, theme, datasets, variables, settings, schema_version, revision, org_id, owner_id)
+            VALUES (?, ?, ?, ?, ?, ?, 1, 1, ?, ?)
             """,
             (
                 title,
@@ -71,6 +104,8 @@ def create_presentation():
                 json.dumps(datasets),
                 json.dumps(variables),
                 json.dumps(settings),
+                g.org_id,
+                g.user_id,
             ),
         )
         presentation_id = cursor.lastrowid
@@ -124,9 +159,11 @@ def list_presentations():
                    COUNT(s.id) AS slide_count
             FROM presentations p
             LEFT JOIN slides s ON s.presentation_id = p.id
+            WHERE p.org_id = ?
             GROUP BY p.id
             ORDER BY p.created_at DESC, p.id DESC
-            """
+            """,
+            (g.org_id,),
         ).fetchall()
 
         first_slides = {}
@@ -185,7 +222,7 @@ def get_presentation(presentation_id):
             """
             SELECT id, title, description, created_at, updated_at,
                    theme, datasets, variables, settings, schema_version, revision,
-                   share_token, is_shared
+                   share_token, is_shared, org_id, brand_id, brand_version_id
             FROM presentations
             WHERE id = ?
             """,
@@ -194,6 +231,7 @@ def get_presentation(presentation_id):
 
         if row is None:
             return {"error": "Presentation not found."}, 404
+        brand = deck_brand(connection, row["org_id"], row["brand_id"], row["brand_version_id"])
 
         slide_rows = connection.execute(
             """
@@ -242,6 +280,7 @@ def get_presentation(presentation_id):
 
     presentation["slides"] = slides
     presentation["slide_count"] = len(slides)
+    presentation["brand"] = brand
 
     return {"presentation": presentation}, 200
 
@@ -336,10 +375,44 @@ def update_presentation(presentation_id):
 
         # Revision check (concurrency guard returning 409)
         client_rev = data.get("revision")
-        if client_rev is not None and client_rev != current_rev:
+        force = data.get("force", False)
+        if not force and client_rev is not None and client_rev != current_rev:
+            slide_rows = connection.execute(
+                """
+                SELECT id, presentation_id, slide_order, title,
+                       content, created_at, updated_at, spec
+                FROM slides
+                WHERE presentation_id = ?
+                ORDER BY slide_order ASC, id ASC
+                """,
+                (presentation_id,),
+            ).fetchall()
+            server_presentation = Presentation(
+                id=existing["id"],
+                title=existing["title"],
+                description=existing["description"],
+                theme=parse_json_safely(existing["theme"], {"themeId": "default"}),
+                datasets=parse_json_safely(existing["datasets"], {}),
+                variables=parse_json_safely(existing["variables"], {}),
+                settings=parse_json_safely(existing["settings"], {}),
+                schema_version=existing["schema_version"] or 1,
+                revision=current_rev,
+            ).to_dict()
+            server_presentation["slides"] = [
+                Slide(
+                    id=s["id"],
+                    presentation_id=s["presentation_id"],
+                    slide_order=s["slide_order"],
+                    title=s["title"],
+                    content=s["content"],
+                    spec=parse_json_safely(s["spec"], None),
+                ).to_dict()
+                for s in slide_rows
+            ]
             return {
                 "error": "Conflict: presentation was modified elsewhere",
                 "current_revision": current_rev,
+                "presentation": server_presentation,
             }, 409
 
         fields = []
@@ -364,10 +437,14 @@ def update_presentation(presentation_id):
             values.append(json.dumps(data["theme"]))
 
         if "datasets" in data:
-            datasets = data["datasets"]
+            datasets = normalize_datasets(data["datasets"])
+            data["datasets"] = datasets
             try:
                 for k, v in datasets.items():
-                    Dataset.model_validate(v)
+                    # Generated decks also keep research notes (sources, chart drafts) here;
+                    # only entries shaped like a dataset are datasets.
+                    if not isinstance(v, dict) or "columns" in v or "rows" in v:
+                        Dataset.model_validate(v)
             except ValidationError as e:
                 return {"error": "Invalid dataset schema", "details": e.errors()}, 422
             fields.append("datasets = ?")
@@ -377,7 +454,9 @@ def update_presentation(presentation_id):
             variables = data["variables"]
             try:
                 for k, v in variables.items():
-                    Variable.model_validate(v)
+                    # Generated decks also keep research notes here; validate real variables only.
+                    if isinstance(v, dict) and ("type" in v or "value" in v):
+                        Variable.model_validate(v)
             except ValidationError as e:
                 return {"error": "Invalid variable schema", "details": e.errors()}, 422
             fields.append("variables = ?")
@@ -414,6 +493,7 @@ def update_presentation(presentation_id):
             """,
             (presentation_id,),
         ).fetchone()
+        brand = deck_brand_for(connection, presentation_id)
     finally:
         connection.close()
 
@@ -433,6 +513,7 @@ def update_presentation(presentation_id):
         schema_version=updated_row["schema_version"] or 1,
         revision=updated_row["revision"] or new_rev,
     ).to_dict()
+    presentation["brand"] = brand
 
     return {"message": "Presentation updated successfully", "presentation": presentation}, 200
 
@@ -443,10 +524,12 @@ def delete_presentation(presentation_id):
 
     try:
         row = connection.execute(
-            "SELECT id FROM presentations WHERE id = ?", (presentation_id,)
+            "SELECT id, owner_id FROM presentations WHERE id = ?", (presentation_id,)
         ).fetchone()
         if row is None:
             return {"error": "Presentation not found."}, 404
+        if not can_delete_deck(row["owner_id"]):
+            return {"error": "Only the deck's owner or an admin can delete it.", "code": "forbidden"}, 403
 
         connection.execute("DELETE FROM slides WHERE presentation_id = ?", (presentation_id,))
         connection.execute("DELETE FROM presentations WHERE id = ?", (presentation_id,))
@@ -463,7 +546,8 @@ def duplicate_presentation(presentation_id):
     try:
         row = connection.execute(
             """
-            SELECT id, title, description, theme, datasets, variables, settings, schema_version
+            SELECT id, title, description, theme, datasets, variables, settings, schema_version,
+                   brand_id, brand_version_id
             FROM presentations WHERE id = ?
             """,
             (presentation_id,),
@@ -473,8 +557,9 @@ def duplicate_presentation(presentation_id):
 
         cur = connection.execute(
             """
-            INSERT INTO presentations (title, description, theme, datasets, variables, settings, schema_version, revision)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+            INSERT INTO presentations (title, description, theme, datasets, variables, settings, schema_version, revision,
+                                       org_id, owner_id, brand_id, brand_version_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
             """,
             (
                 f"{row['title']} (Copy)",
@@ -484,6 +569,10 @@ def duplicate_presentation(presentation_id):
                 row["variables"],
                 row["settings"],
                 row["schema_version"] or 1,
+                g.org_id,
+                g.user_id,
+                row["brand_id"],
+                row["brand_version_id"],
             ),
         )
         new_id = cur.lastrowid

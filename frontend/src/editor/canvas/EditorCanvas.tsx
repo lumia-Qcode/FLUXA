@@ -7,7 +7,11 @@ import { useDocument } from "../store/DocumentContext";
 import { InsertToolbar } from "./InsertToolbar";
 import { HandleType, SelectionOverlay } from "./SelectionOverlay";
 import { computeSnapping, SnapGuide } from "./snapping";
-import { TiptapInlineEditor } from "./TiptapInlineEditor";
+// Tiptap/ProseMirror (about 800 KB) is fetched in the background once the canvas mounts,
+// so the first text edit is instant but other pages never download it (D3).
+const loadTiptap = () => import("./TiptapInlineEditor");
+const TiptapInlineEditor = React.lazy(() => loadTiptap().then((m) => ({ default: m.TiptapInlineEditor })));
+import { Sparkles, ArrowUp, ChevronDown } from "lucide-react";
 
 const LOGICAL_WIDTH = 1920;
 const LOGICAL_HEIGHT = 1080;
@@ -17,6 +21,14 @@ interface EditorCanvasProps {
 }
 
 export const EditorCanvas: React.FC<EditorCanvasProps> = ({ theme }) => {
+  // Warm the text editor chunk once the page is idle (not during load, where parsing it
+  // blocked the main thread), so the first edit still opens instantly.
+  useEffect(() => {
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number };
+    const warm = () => loadTiptap().catch(() => {});
+    const timer = window.setTimeout(() => (w.requestIdleCallback ? w.requestIdleCallback(warm, { timeout: 4000 }) : warm()), 3000);
+    return () => window.clearTimeout(timer);
+  }, []);
   const {
     doc,
     selectedSlide,
@@ -33,6 +45,16 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({ theme }) => {
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [tryItMode, setTryItMode] = useState<boolean>(false);
+  const [showProposedChange, setShowProposedChange] = useState<boolean>(true);
+  const [canvasChatInput, setCanvasChatInput] = useState<string>("");
+
+  const isSlide3 =
+    selectedSlide?.order === 2 ||
+    selectedSlide?.id === "hosp-s3" ||
+    Boolean(selectedSlide?.blocks.some((b) => b.id === "h-s3-sub"));
+  const subBlock = selectedSlide?.blocks.find(
+    (b) => b.id === "h-s3-sub" || b.role === "subtitle"
+  );
 
   // Drag & Resize state
   const dragRef = useRef<{
@@ -382,8 +404,17 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({ theme }) => {
               }}
               onControlChange={(varName, val) => {
                 execute("Set Variable", (draft) => {
+                  if (!draft.variables) draft.variables = {};
                   if (draft.variables[varName]) {
                     draft.variables[varName].value = val;
+                  } else {
+                    draft.variables[varName] = {
+                      id: varName,
+                      label: varName,
+                      type: typeof val === "number" ? "number" : typeof val === "boolean" ? "boolean" : "choice",
+                      value: val,
+                      scope: "deck",
+                    };
                   }
                 });
               }}
@@ -434,6 +465,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({ theme }) => {
                 if (!textBlock) return null;
 
                 return (
+                  <React.Suspense fallback={null}>
                   <TiptapInlineEditor
                     block={textBlock}
                     onSave={(newDoc) => {
@@ -448,6 +480,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({ theme }) => {
                     }}
                     onClose={() => setEditingBlockId(null)}
                   />
+                  </React.Suspense>
                 );
               })()
             )}
@@ -478,6 +511,246 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({ theme }) => {
                 }}
               />
             ))}
+            {/* Page 3: Proposed Change Overlay on Subtitle */}
+            {isSlide3 && showProposedChange && subBlock && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: `${subBlock.x - 12}px`,
+                  top: `${subBlock.y - 8}px`,
+                  width: `${subBlock.w + 24}px`,
+                  height: `${subBlock.h + 16}px`,
+                  border: "2px dashed #0284C7",
+                  borderRadius: "8px",
+                  pointerEvents: "none",
+                  zIndex: 8900,
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "-14px",
+                    left: "12px",
+                    backgroundColor: "#0284C7",
+                    color: "#FFFFFF",
+                    padding: "2px 10px",
+                    borderRadius: "10px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    letterSpacing: "0.02em",
+                    boxShadow: "0 1px 4px rgba(2, 132, 199, 0.4)",
+                  }}
+                >
+                  Proposed change
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Page 3 Floating AI Change Card & Chat Pill Bar */}
+        {isSlide3 && showProposedChange && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: "28px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 9000,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "10px",
+              width: "480px",
+              maxWidth: "92%",
+            }}
+          >
+            {/* User Blue Message Pill */}
+            <div
+              style={{
+                alignSelf: "flex-end",
+                backgroundColor: "#2563EB",
+                color: "#FFFFFF",
+                padding: "6px 16px",
+                borderRadius: "18px 18px 4px 18px",
+                fontSize: "13px",
+                fontWeight: 500,
+                boxShadow: "0 2px 6px rgba(37,99,235,0.3)",
+              }}
+            >
+              Shorten the subtitle
+            </div>
+
+            {/* AI Change Proposal Card */}
+            <div
+              style={{
+                width: "100%",
+                backgroundColor: "#FFFFFF",
+                border: "1px solid #E5E7EB",
+                borderRadius: "14px",
+                padding: "16px 20px",
+                boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.06)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+              }}
+            >
+              {/* Header */}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Sparkles size={16} color="#2563EB" />
+                <span style={{ fontSize: "13px", fontWeight: 600, color: "#111827" }}>
+                  One change is ready. Nothing else on the slide moves.
+                </span>
+              </div>
+
+              {/* Diff Box */}
+              <div
+                style={{
+                  backgroundColor: "#F9FAFB",
+                  border: "1px solid #F3F4F6",
+                  borderRadius: "8px",
+                  padding: "10px 14px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "4px",
+                }}
+              >
+                <div style={{ fontSize: "13px", color: "#9CA3AF", textDecoration: "line-through" }}>
+                  Share of hospitals piloting AI, by year
+                </div>
+                <div style={{ fontSize: "14px", color: "#111827", fontWeight: 600 }}>
+                  Hospitals piloting AI
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowProposedChange(false)}
+                  style={{
+                    padding: "6px 14px",
+                    borderRadius: "6px",
+                    border: "1px solid #D1D5DB",
+                    backgroundColor: "#FFFFFF",
+                    color: "#374151",
+                    fontSize: "13px",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  Reject
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    execute("Shorten Subtitle", (draft) => {
+                      const s = draft.slides.find((sl) => sl.id === selectedSlide?.id);
+                      if (!s) return;
+                      const b = s.blocks.find((bl) => bl.id === "h-s3-sub" || bl.role === "subtitle") as any;
+                      if (b) {
+                        b.content = "Hospitals piloting AI";
+                        b.doc = {
+                          type: "doc",
+                          content: [{ type: "paragraph", content: [{ type: "text", text: "Hospitals piloting AI" }] }],
+                        };
+                      }
+                    });
+                    setShowProposedChange(false);
+                  }}
+                  style={{
+                    padding: "6px 16px",
+                    borderRadius: "6px",
+                    border: "none",
+                    backgroundColor: "#2563EB",
+                    color: "#FFFFFF",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    boxShadow: "0 1px 3px rgba(37,99,235,0.3)",
+                  }}
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+
+            {/* Bottom Chat Bar Pill */}
+            <div
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                backgroundColor: "#FFFFFF",
+                border: "1px solid #E5E7EB",
+                borderRadius: "24px",
+                padding: "4px 6px 4px 14px",
+                gap: "8px",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  padding: "4px 8px",
+                  borderRadius: "12px",
+                  backgroundColor: "#F3F4F6",
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  color: "#374151",
+                }}
+              >
+                <span>Slide 3</span>
+                <ChevronDown size={12} color="#6B7280" />
+              </div>
+
+              <input
+                type="text"
+                placeholder="Ask for a change"
+                value={canvasChatInput}
+                onChange={(e) => setCanvasChatInput(e.target.value)}
+                style={{
+                  flex: 1,
+                  border: "none",
+                  outline: "none",
+                  backgroundColor: "transparent",
+                  fontSize: "13px",
+                  color: "#111827",
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && canvasChatInput.trim()) {
+                    setCanvasChatInput("");
+                    setShowProposedChange(true);
+                  }
+                }}
+              />
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (canvasChatInput.trim()) {
+                    setCanvasChatInput("");
+                    setShowProposedChange(true);
+                  }
+                }}
+                style={{
+                  width: "28px",
+                  height: "28px",
+                  borderRadius: "50%",
+                  backgroundColor: "#2563EB",
+                  color: "#FFFFFF",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <ArrowUp size={14} />
+              </button>
+            </div>
           </div>
         )}
 

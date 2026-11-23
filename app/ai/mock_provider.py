@@ -1,3 +1,4 @@
+import uuid
 """Deterministic Mock Provider for tests and offline development per Section 4.5."""
 
 from typing import Any, Dict, List, Tuple
@@ -30,13 +31,15 @@ class MockProvider(BaseProvider):
         # Template layout sequence offering a varied narrative structure
         layout_templates = [
             ("title", "Executive introduction and agenda", "none"),
-            ("bullets", "Strategic context and baseline problem statement", "none"),
-            ("chart-text", "Market performance and quarterly growth dynamics", "chart"),
             ("big-number", "Primary operational impact and key efficiency metric", "kpi"),
+            ("chart-text", "Market performance and quarterly growth dynamics", "chart"),
+            ("swot", "Strategic evaluation across strengths, weaknesses, opportunities, and threats", "swot"),
             ("two-column", "Core pillars and architectural capabilities", "none"),
             ("timeline", "Implementation roadmap and rollout milestones", "timeline"),
+            ("market-size", "Addressable market scope and segment potential", "market-size"),
             ("comparison", "Competitive differentiation and before/after matrix", "comparison"),
             ("quote", "Customer validation and leadership perspective", "quote"),
+            ("bullets", "Strategic recommendations and actionable next steps", "none"),
         ]
 
         slides = []
@@ -84,6 +87,7 @@ class MockProvider(BaseProvider):
         title = outline_item.get("title", "Slide Title")
         layout = outline_item.get("layout", "bullets")
         purpose = outline_item.get("purpose", "")
+        topic = deck_context.get("description") or deck_context.get("title") or "Strategic Initiative"
 
         semantic: Dict[str, Any] = {
             "title": title,
@@ -187,6 +191,43 @@ class MockProvider(BaseProvider):
                 "Velocity: Instantaneous interactive recalculation without lag",
                 "Security: Whitelisted AST execution keeping slides safe",
                 "Clarity: Quiet instrument design prioritizing slide content",
+            ]
+
+        elif layout == "swot":
+            semantic["swot"] = {
+                "strengths": [f"Core competency in {topic[:30]}", "Validated execution framework and high accuracy"],
+                "weaknesses": ["Integration complexity across legacy systems", "Staff training and onboarding time curve"],
+                "opportunities": [f"Expansion across regional network for {topic[:30]}", "Predictive automation and proactive analytics"],
+                "threats": ["Evolving regulatory and governance standards", "Ecosystem fragmentation and data silos"],
+            }
+            semantic["bullets"] = [
+                f"SWOT Matrix: Strategic positioning for {topic[:35]}",
+                "Maximizing high-impact strengths while mitigating operational weaknesses",
+            ]
+
+        elif layout == "market-size":
+            semantic["marketSize"] = {
+                "tam": {"value": "$195B", "label": "Total Addressable Market", "sub": f"Global {topic[:30]} industry scope"},
+                "sam": {"value": "$52B", "label": "Serviceable Addressable Market", "sub": "Core addressable segment"},
+                "som": {"value": "$11.4B", "label": "Serviceable Obtainable Market", "sub": "Immediate obtainable share"},
+            }
+            semantic["bullets"] = [
+                f"TAM / SAM / SOM Market Sizing for {topic[:35]}",
+                "Significant addressable headroom with accelerating segment CAGR",
+            ]
+
+        elif layout == "funnel":
+            semantic["funnel"] = {
+                "stages": [
+                    {"name": "Stage 1: Discovery", "value": "100%", "pct": "100%", "desc": f"Total candidate population for {topic[:25]}"},
+                    {"name": "Stage 2: Validation", "value": "62%", "pct": "62%", "desc": "Evaluated through baseline criteria"},
+                    {"name": "Stage 3: Protocol", "value": "34%", "pct": "34%", "desc": "Advanced into active implementation"},
+                    {"name": "Stage 4: Impact", "value": "18%", "pct": "18%", "desc": "Achieved sustainable target outcomes"},
+                ]
+            }
+            semantic["bullets"] = [
+                f"Multi-tier conversion funnel for {topic[:35]}",
+                "High conversion efficiency sustained from screening through execution",
             ]
 
         else:
@@ -337,7 +378,42 @@ class MockProvider(BaseProvider):
             ]
             return ("Added reactive growth rate slider bound to variable var_rate.", ops)
 
-        # 5. "Speaker notes"
+        # 5. "Add a chart" / "pie chart" / "donut" / "bar chart" / "3d chart"
+        if any(w in lower_msg for w in ["chart", "pie", "donut", "graph", "breakdown", "distribution"]):
+            is_pie = any(w in lower_msg for w in ["pie", "donut", "cylinder", "share", "ratio"])
+            chart_kind = "donut" if is_pie else "bar"
+            chart_title = "Distribution Breakdown" if is_pie else "Key Metrics"
+            labels = ["Segment Alpha", "Segment Beta", "Segment Gamma"] if is_pie else ["Q1", "Q2", "Q3", "Q4"]
+            values = [45, 35, 20] if is_pie else [40, 65, 80, 95]
+
+            ops = [
+                {
+                    "op": "add_block",
+                    "block": {
+                        "id": f"blk-chart-{uuid.uuid4().hex[:6]}",
+                        "type": "chart",
+                        "kind": chart_kind,
+                        "is3D": True,
+                        "x": 1000,
+                        "y": 220,
+                        "w": 820,
+                        "h": 680,
+                        "box": {"x": 1000, "y": 220, "w": 820, "h": 680},
+                        "props": {
+                            "kind": chart_kind,
+                            "chartType": chart_kind,
+                            "is3D": True,
+                            "title": chart_title,
+                            "labels": labels,
+                            "values": values,
+                        },
+                    },
+                }
+            ]
+            kind_label = "3D Pie/Donut Chart" if is_pie else "3D Bar Chart"
+            return (f"Added interactive {kind_label} with distribution data.", ops)
+
+        # 6. "Speaker notes"
         if "notes" in lower_msg:
             ops = [
                 {

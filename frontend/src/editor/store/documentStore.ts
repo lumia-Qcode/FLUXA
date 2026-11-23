@@ -161,6 +161,7 @@ export const commands = {
 
   setDeckTheme: (themeId: string, overrides?: Record<string, any>) => (draft: DeckDocument) => {
     draft.theme = {
+      ...draft.theme, // keeps the typography pairing
       themeId,
       themeOverrides: overrides || draft.theme.themeOverrides,
     };

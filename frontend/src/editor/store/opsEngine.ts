@@ -22,7 +22,9 @@ export interface AIOperation {
     | "apply_layout"
     | "apply_theme"
     | "set_animation"
-    | "set_notes";
+    | "set_notes"
+    | "update_chart"   // alias: set_block_props with chart-specific props
+    | "restyle";       // alias: set_block_props with style/theme props
   block_id?: string;
   props?: Record<string, any>;
   block?: Block;
@@ -42,6 +44,105 @@ export interface AIOperation {
   notes?: string;
 }
 
+/**
+ * Text blocks display, in order: bullets, rich text (doc), content, props.text. An AI edit that
+ * only set `text` was therefore invisible on most generated slides. Write the new text into the
+ * field that is displayed and drop the stale ones.
+ */
+const paragraphDoc = (text: string) => ({
+  type: "doc",
+  content: text.split("\n").map((line) => ({ type: "paragraph", content: line ? [{ type: "text", text: line }] : [] })),
+});
+const bulletDoc = (items: string[]) => ({
+  type: "doc",
+  content: [
+    {
+      type: "bulletList",
+      content: items.map((item) => ({
+        type: "listItem",
+        content: [{ type: "paragraph", content: [{ type: "text", text: item }] }],
+      })),
+    },
+  ],
+});
+
+function applyTextChange(blk: any, props: Record<string, any>) {
+  // The rich-text doc is rebuilt (not deleted): the server requires `doc` on text blocks,
+  // and the editor's own text tool edits it.
+  const text = props.text ?? props.content;
+  if (typeof text === "string") {
+    blk.content = text;
+    blk.text = text;
+    blk.props = { ...(blk.props || {}), text };
+    blk.doc = paragraphDoc(text);
+    if (!Array.isArray(props.bullets)) {
+      delete blk.bullets;
+      if (blk.props) delete blk.props.bullets;
+    }
+  }
+  if (Array.isArray(props.bullets)) {
+    const bullets = props.bullets.map((b: any) => (typeof b === "string" ? b : String(b?.text ?? b)));
+    blk.bullets = bullets;
+    blk.props = { ...(blk.props || {}), bullets };
+    blk.doc = bulletDoc(bullets);
+  }
+  // Size/position changes ("make the chart bigger") live on the block box, not in props.
+  for (const k of ["x", "y", "w", "h"]) {
+    if (typeof props[k] === "number") {
+      blk[k] = props[k];
+      blk.box = { ...(blk.box || {}), [k]: props[k] };
+    }
+  }
+  const styleKeys = ["fontSize", "fontWeight", "color", "align", "italic", "underline"];
+  const style: Record<string, any> = {};
+  for (const k of styleKeys) if (props[k] !== undefined) style[k] = props[k];
+  if (props.style && typeof props.style === "object") Object.assign(style, props.style);
+  if (Object.keys(style).length) blk.style = { ...(blk.style || {}), ...style };
+}
+
+/**
+ * Chart data edits. Generated charts read their rows from a dataset (block.dataset), so labels and
+ * values written onto the block were either ignored or plotted against the wrong series field.
+ * Write them into the dataset the chart and the Data tab both use; charts without a dataset keep
+ * labels/values on the block.
+ */
+function applyChartData(draft: DeckDocument, blk: any, props: Record<string, any>) {
+  let labels: any[] | undefined = props.labels;
+  let values: any[] | undefined = props.values;
+  if (Array.isArray(props.data)) {
+    labels = props.data.map((d: any) => d?.label ?? d?.category ?? d?.x);
+    values = props.data.map((d: any) => d?.value ?? d?.y);
+  }
+  for (const k of ["kind", "is3D", "title"]) {
+    if (props[k] !== undefined) {
+      blk[k] = props[k];
+      blk.props = { ...(blk.props || {}), [k]: props[k] };
+    }
+  }
+  if (!Array.isArray(labels) || !Array.isArray(values)) return;
+  const nums = values.map((v) => (typeof v === "number" ? v : Number(String(v).replace(/[^0-9.-]/g, ""))));
+  const dsName = blk.dataset || blk.props?.dataset;
+  const ds = dsName ? (draft.datasets as any)[dsName] : undefined;
+  if (ds) {
+    const xKey = blk.xField || blk.props?.xField || ds.columns?.find((c: any) => c.type !== "number")?.key || "category";
+    const yKey =
+      blk.series?.[0]?.field || blk.props?.series?.[0]?.field || blk.yField || blk.props?.yField ||
+      ds.columns?.find((c: any) => c.type === "number")?.key || "value";
+    ds.rows = labels.map((l, i) => ({ [xKey]: String(l), [yKey]: Number.isFinite(nums[i]) ? nums[i] : 0 }));
+    if (ds.source === "research") ds.source = "user"; // edited values are no longer the cited source's
+    delete blk.labels;
+    delete blk.values;
+    if (blk.props) {
+      delete blk.props.labels;
+      delete blk.props.values;
+    }
+  } else {
+    blk.labels = labels.map(String);
+    blk.values = nums;
+    blk.props = { ...(blk.props || {}), labels: blk.labels, values: blk.values };
+  }
+}
+
 export function applyAIOps(
   draft: DeckDocument,
   ops: AIOperation[],
@@ -53,19 +154,31 @@ export function applyAIOps(
   for (const opItem of ops) {
     switch (opItem.op) {
       case "set_block_props": {
-        if (!opItem.block_id || !opItem.props) break;
-        affectedBlockIds.push(opItem.block_id);
+        const targetId = opItem.block_id || (opItem as any).id || (opItem as any).blockId;
+        const targetProps = opItem.props ? { ...opItem.props } : { ...opItem };
+        delete (targetProps as any).op;
+        delete (targetProps as any).block_id;
+        delete (targetProps as any).id;
+        delete (targetProps as any).blockId;
+
+        if (!targetId) break;
+        affectedBlockIds.push(targetId);
 
         for (const slide of draft.slides) {
-          const blk = slide.blocks.find((b: any) => b.id === opItem.block_id) as any;
+          const blk = slide.blocks.find((b: any) => b.id === targetId) as any;
           if (blk) {
+            const tp = targetProps as Record<string, any>;
+            if (blk.type === "chart" && (tp.labels || tp.values || tp.data)) {
+              applyChartData(draft, blk, tp);
+            }
             if (blk.props) {
-              blk.props = { ...blk.props, ...opItem.props };
+              blk.props = { ...blk.props, ...targetProps };
             }
-            if (blk.style && opItem.props.style) {
-              blk.style = { ...blk.style, ...opItem.props.style };
+            if (blk.style && (targetProps as any).style) {
+              blk.style = { ...blk.style, ...(targetProps as any).style };
             }
-            Object.assign(blk, opItem.props);
+            Object.assign(blk, targetProps);
+            applyTextChange(blk, targetProps);
             break;
           }
         }
@@ -78,8 +191,46 @@ export function applyAIOps(
           ? draft.slides.find((s) => s.id === opItem.slide_id) || currentSlide
           : currentSlide;
         if (targetSlide) {
-          targetSlide.blocks.push(opItem.block);
-          affectedBlockIds.push(opItem.block.id);
+          const rawBlk = { ...opItem.block } as any;
+          const blkId = rawBlk.id || `blk-${rawBlk.type || "block"}-${Math.random().toString(36).substring(2, 8)}`;
+
+          // Find optimal coordinates on 1920x1080 canvas if missing
+          const hasLeftContent = targetSlide.blocks.some((b: any) => (b.x ?? 0) < 900 && (b.w ?? 0) >= 500);
+          const defaultX = hasLeftContent ? 1000 : 100;
+          const defaultY = 220;
+          const defaultW = defaultX === 1000 ? 820 : 1720;
+          const defaultH = 680;
+
+          const blockToAdd: any = {
+            id: blkId,
+            type: rawBlk.type || "chart",
+            role: rawBlk.role || rawBlk.type || "media",
+            x: rawBlk.x ?? rawBlk.box?.x ?? defaultX,
+            y: rawBlk.y ?? rawBlk.box?.y ?? defaultY,
+            w: rawBlk.w ?? rawBlk.box?.w ?? defaultW,
+            h: rawBlk.h ?? rawBlk.box?.h ?? defaultH,
+            props: { ...(rawBlk.props || {}) },
+          };
+
+          blockToAdd.box = {
+            x: blockToAdd.x,
+            y: blockToAdd.y,
+            w: blockToAdd.w,
+            h: blockToAdd.h,
+          };
+
+          if (blockToAdd.type === "chart") {
+            const chartKind = rawBlk.kind || rawBlk.props?.kind || rawBlk.props?.chartType || "donut";
+            blockToAdd.kind = chartKind;
+            blockToAdd.props.kind = chartKind;
+            blockToAdd.is3D = rawBlk.is3D ?? rawBlk.props?.is3D ?? true;
+            blockToAdd.props.is3D = blockToAdd.is3D;
+            if (rawBlk.props?.labels) blockToAdd.labels = rawBlk.props.labels;
+            if (rawBlk.props?.values) blockToAdd.values = rawBlk.props.values;
+          }
+
+          targetSlide.blocks.push(blockToAdd);
+          affectedBlockIds.push(blockToAdd.id);
         }
         break;
       }
@@ -211,8 +362,64 @@ export function applyAIOps(
       }
 
       case "set_notes": {
-        if (currentSlide && typeof opItem.notes === "string") {
-          currentSlide.notes = opItem.notes;
+        const notesSlide = opItem.slide_id ? draft.slides.find((s) => s.id === opItem.slide_id) || currentSlide : currentSlide;
+        if (notesSlide && typeof opItem.notes === "string") {
+          notesSlide.notes = opItem.notes;
+        }
+        break;
+      }
+
+      case "update_chart": {
+        // Merge chart-specific props (labels, values, kind, is3D) into the block
+        const targetId = opItem.block_id || (opItem as any).id || (opItem as any).blockId;
+        if (!targetId) break;
+        for (const slide of draft.slides) {
+          const blk = slide.blocks.find((b: any) => b.id === targetId) as any;
+          if (blk) {
+            const chartProps: Record<string, any> = {};
+            if (opItem.props?.labels !== undefined) chartProps.labels = opItem.props.labels;
+            if (opItem.props?.values !== undefined) chartProps.values = opItem.props.values;
+            if (opItem.props?.kind !== undefined) chartProps.kind = opItem.props.kind;
+            if (opItem.props?.is3D !== undefined) chartProps.is3D = opItem.props.is3D;
+            // Also pick top-level fields from the op itself
+            if ((opItem as any).labels !== undefined) chartProps.labels = (opItem as any).labels;
+            if ((opItem as any).values !== undefined) chartProps.values = (opItem as any).values;
+            if ((opItem as any).kind !== undefined) chartProps.kind = (opItem as any).kind;
+            if ((opItem as any).is3D !== undefined) chartProps.is3D = (opItem as any).is3D;
+            if (opItem.props?.data !== undefined) chartProps.data = opItem.props.data;
+            if (opItem.props?.title !== undefined) chartProps.title = opItem.props.title;
+
+            applyChartData(draft, blk, chartProps);
+            affectedBlockIds.push(blk.id);
+            break;
+          }
+        }
+        break;
+      }
+
+      case "restyle": {
+        // Merge style/theme props into a block OR apply slide-level style
+        const targetId = opItem.block_id || (opItem as any).id || (opItem as any).blockId;
+        const styleProps = opItem.props || {};
+        if (targetId) {
+          for (const slide of draft.slides) {
+            const blk = slide.blocks.find((b: any) => b.id === targetId) as any;
+            if (blk) {
+              blk.style = { ...(blk.style || {}), ...styleProps };
+              blk.props = { ...(blk.props || {}), ...styleProps };
+              applyTextChange(blk, styleProps);
+              affectedBlockIds.push(blk.id);
+              break;
+            }
+          }
+        } else {
+          // Slide-level style: apply to current slide
+          const targetSlide = opItem.slide_id
+            ? draft.slides.find((s) => s.id === opItem.slide_id) || currentSlide
+            : currentSlide;
+          if (targetSlide) {
+            (targetSlide as any).style = { ...((targetSlide as any).style || {}), ...styleProps };
+          }
         }
         break;
       }

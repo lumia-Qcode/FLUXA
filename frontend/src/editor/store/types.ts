@@ -1,4 +1,5 @@
 import { Dataset, DeckSettings, Slide, Variable } from "../../../../shared/spec";
+import type { DeckBrand } from "../../rendering/themes";
 
 export type SaveStatus = "saved" | "saving" | "offline" | "error" | "conflict";
 
@@ -9,6 +10,8 @@ export interface DeckDocument {
   theme: {
     themeId: string;
     themeOverrides?: Record<string, any>;
+    /** Typography pairing id (rendering/typography.ts); unset keeps the theme's own fonts. */
+    fontPairing?: string;
   };
   datasets: Record<string, Dataset>;
   variables: Record<string, Variable>;
@@ -18,6 +21,8 @@ export interface DeckDocument {
   schemaVersion: number;
   shareToken?: string | null;
   isShared?: boolean;
+  /** The deck's pinned brand version (F6); null or missing means no brand. Read-only here. */
+  brand?: DeckBrand | null;
 }
 
 export type CommandType =

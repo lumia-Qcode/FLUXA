@@ -12,6 +12,9 @@ import {
 import { Block } from "../../../../shared/spec";
 import { Button } from "../../ui/Button";
 import { Popover } from "../../ui/Popover";
+import { Field } from "../../ui/Field";
+import { useDocument } from "../store/DocumentContext";
+import { commands } from "../store/documentStore";
 
 interface InsertToolbarProps {
   onInsertBlock: (block: Block, dataset?: any) => void;
@@ -25,6 +28,141 @@ export const InsertToolbar: React.FC<InsertToolbarProps> = ({
   onToggleTryIt,
 }) => {
   const [chartPickerAnchor, setChartPickerAnchor] = useState<DOMRect | null>(null);
+  // #8 Live Demo Generator
+  const { doc, selectedSlide, execute, setSelectedSlideId } = useDocument();
+  // #9 Presentation Memory: reuse slides from the org's other decks
+  const [reuseAnchor, setReuseAnchor] = useState<DOMRect | null>(null);
+  const [reuseQ, setReuseQ] = useState("");
+  const [reuseBusy, setReuseBusy] = useState(false);
+  const [reuseResults, setReuseResults] = useState<any[] | null>(null);
+
+  const searchReuse = async (q: string) => {
+    setReuseBusy(true);
+    try {
+      const res = await fetch(`/api/presentations/${doc.id}/related-slides?q=${encodeURIComponent(q)}`);
+      const data = await res.json().catch(() => ({}));
+      setReuseResults(res.ok ? data.slides || [] : []);
+    } finally {
+      setReuseBusy(false);
+    }
+  };
+
+  const reuseSlide = (item: any) => {
+    const stamp = Date.now().toString(36);
+    const clone = JSON.parse(JSON.stringify(item.spec));
+    const renames: Record<string, string> = {};
+    const incoming: Record<string, any> = item.datasets || {};
+    for (const key of Object.keys(incoming)) {
+      const clash = doc.datasets?.[key] && JSON.stringify(doc.datasets[key]) !== JSON.stringify(incoming[key]);
+      renames[key] = clash ? `${key}_${stamp}` : key;
+    }
+    clone.id = `slide-reuse-${stamp}`;
+    clone.hidden = false;
+    delete clone.dbId;
+    (clone.blocks || []).forEach((b: any, i: number) => {
+      b.id = `${b.type || "blk"}-reuse-${stamp}-${i}`;
+      if (b.dataset && renames[b.dataset]) b.dataset = renames[b.dataset];
+      if (b.props?.dataset && renames[b.props.dataset]) b.props.dataset = renames[b.props.dataset];
+    });
+    const at = Math.max(0, doc.slides.findIndex((s) => s.id === selectedSlide?.id)) + 1;
+    execute(`Reuse slide from "${item.deckTitle}"`, (draft) => {
+      for (const [key, ds] of Object.entries(incoming)) {
+        draft.datasets[renames[key]] = { ...(ds as any), id: renames[key] };
+      }
+      draft.slides.splice(at, 0, clone);
+      draft.slides.forEach((sl, i) => {
+        sl.order = i;
+      });
+    });
+    setSelectedSlideId(clone.id);
+    setReuseAnchor(null);
+  };
+
+  // #13 Decision Rooms
+  const [decisionAnchor, setDecisionAnchor] = useState<DOMRect | null>(null);
+  const [decisionQ, setDecisionQ] = useState("");
+  const [decisionOpts, setDecisionOpts] = useState("");
+  const [decisionBusy, setDecisionBusy] = useState(false);
+  const [decisionError, setDecisionError] = useState("");
+  const decisionOptions = decisionOpts.split(/[,;]/).map((o) => o.trim()).filter(Boolean).slice(0, 4);
+
+  const handleDecision = async () => {
+    if (decisionQ.trim().length < 3 || decisionOptions.length < 2) return;
+    setDecisionBusy(true);
+    setDecisionError("");
+    try {
+      const res = await fetch(`/api/presentations/${doc.id}/ai/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: decisionQ.trim(), options: decisionOptions }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Couldn't prepare the decision room.");
+      const at = Math.max(0, doc.slides.findIndex((s) => s.id === selectedSlide?.id)) + 1;
+      execute("Add decision room", commands.addSlide(at, data.slide));
+      setSelectedSlideId(data.slide.id);
+      setDecisionAnchor(null);
+      setDecisionQ("");
+      setDecisionOpts("");
+    } catch (err) {
+      setDecisionError(err instanceof Error ? err.message : "Couldn't prepare the decision room.");
+    } finally {
+      setDecisionBusy(false);
+    }
+  };
+  const [demoAnchor, setDemoAnchor] = useState<DOMRect | null>(null);
+  const [demoAsk, setDemoAsk] = useState("");
+  const [demoBusy, setDemoBusy] = useState(false);
+  const [demoError, setDemoError] = useState("");
+
+  const handleGenerateDemo = async () => {
+    if (demoAsk.trim().length < 3) return;
+    setDemoBusy(true);
+    setDemoError("");
+    try {
+      const titleBlock: any = selectedSlide?.blocks.find((b: any) => b.role === "title");
+      const res = await fetch(`/api/presentations/${doc.id}/ai/demo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ request: demoAsk.trim(), slideTitle: titleBlock?.content || titleBlock?.text || "" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Couldn't build the demo.");
+      // Each demo gets its own slide after the current one, so it never covers existing content.
+      const stamp = Date.now();
+      const title = String(data.title || "Live demo");
+      const demoSlide: any = {
+        id: `slide-demo-${stamp}`,
+        layout: "blank",
+        notes: data.explanation || "",
+        transition: { effect: "fade", duration: 300 },
+        blocks: [
+          {
+            id: `blk-demo-title-${stamp}`,
+            type: "text",
+            role: "title",
+            x: 100,
+            y: 60,
+            w: 1720,
+            h: 100,
+            content: title,
+            doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: title }] }] },
+            style: { fontSize: 44, fontWeight: 700 },
+          },
+          { id: `block-demo-${stamp}`, type: "html", name: title, x: 100, y: 190, w: 1720, h: 820, code: data.code },
+        ],
+      };
+      const at = Math.max(0, doc.slides.findIndex((s) => s.id === selectedSlide?.id)) + 1;
+      execute("Add live demo", commands.addSlide(at, demoSlide));
+      setSelectedSlideId(demoSlide.id);
+      setDemoAnchor(null);
+      setDemoAsk("");
+    } catch (err) {
+      setDemoError(err instanceof Error ? err.message : "Couldn't build the demo.");
+    } finally {
+      setDemoBusy(false);
+    }
+  };
 
   const handleInsertText = () => {
     const newBlock: Block = {
@@ -234,6 +372,33 @@ export const InsertToolbar: React.FC<InsertToolbarProps> = ({
         <Button size="sm" variant="ghost" icon={<Code size={14} />} onClick={handleInsertHtml}>
           Widget
         </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<Play size={14} />}
+          onClick={(e) => setDemoAnchor((e.currentTarget as HTMLElement).getBoundingClientRect())}
+        >
+          Demo
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<Sliders size={14} />}
+          onClick={(e) => setDecisionAnchor((e.currentTarget as HTMLElement).getBoundingClientRect())}
+        >
+          Decision
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<TableIcon size={14} />}
+          onClick={(e) => {
+            setReuseAnchor((e.currentTarget as HTMLElement).getBoundingClientRect());
+            if (!reuseResults) searchReuse("");
+          }}
+        >
+          Reuse
+        </Button>
       </div>
 
       {/* "Try it" mode toggle */}
@@ -260,6 +425,81 @@ export const InsertToolbar: React.FC<InsertToolbarProps> = ({
           <Play size={12} fill={tryItMode ? "currentColor" : "none"} />
           <span>{tryItMode ? "Try it: ON" : "Try it"}</span>
         </button>
+      )}
+
+      {demoAnchor && (
+        <Popover open anchorRect={demoAnchor} onClose={() => !demoBusy && setDemoAnchor(null)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, width: 300 }}>
+            <Field
+              label="Demonstrate…"
+              value={demoAsk}
+              autoFocus
+              placeholder="e.g. a compound interest calculator with sliders"
+              onChange={(e) => setDemoAsk(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleGenerateDemo();
+                }
+              }}
+            />
+            <Button size="sm" variant="primary" onClick={handleGenerateDemo} disabled={demoBusy || demoAsk.trim().length < 3}>
+              {demoBusy ? "Building the demo…" : "Generate demo"}
+            </Button>
+            {demoError && <div role="alert" style={{ fontSize: 12, color: "var(--danger, #C4262E)" }}>{demoError}</div>}
+            <div style={{ fontSize: 11, color: "var(--ink-3)" }}>Runs in a sandbox with no network access. Use “Try it” to interact.</div>
+          </div>
+        </Popover>
+      )}
+
+      {reuseAnchor && (
+        <Popover open anchorRect={reuseAnchor} onClose={() => setReuseAnchor(null)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, width: 340 }}>
+            <Field
+              label="Reuse a slide from your past decks"
+              value={reuseQ}
+              placeholder="Search, or leave empty for slides related to this deck"
+              onChange={(e) => setReuseQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  searchReuse(reuseQ);
+                }
+              }}
+            />
+            {reuseBusy && <div style={{ fontSize: 12, color: "var(--ink-3)" }}>Searching…</div>}
+            {reuseResults && !reuseBusy && reuseResults.length === 0 && (
+              <div style={{ fontSize: 12, color: "var(--ink-2)" }}>No related slides found. Try other words.</div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 320, overflowY: "auto" }}>
+              {(reuseResults || []).map((item, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => reuseSlide(item)}
+                  style={{ textAlign: "left", border: "1px solid var(--line)", borderRadius: 4, background: "var(--bg-panel)", padding: "6px 8px", cursor: "pointer" }}
+                >
+                  <div style={{ fontSize: 13, color: "var(--ink)", fontWeight: 500 }}>{item.slideTitle || "Untitled slide"}</div>
+                  <div style={{ fontSize: 11, color: "var(--ink-3)" }}>From “{item.deckTitle}”</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </Popover>
+      )}
+
+      {decisionAnchor && (
+        <Popover open anchorRect={decisionAnchor} onClose={() => !decisionBusy && setDecisionAnchor(null)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, width: 300 }}>
+            <Field label="Decision" value={decisionQ} autoFocus placeholder="e.g. Which rollout plan should we fund?" onChange={(e) => setDecisionQ(e.target.value)} />
+            <Field label="Options (comma-separated, 2 to 4)" value={decisionOpts} placeholder="e.g. Radiology first, Scribes first, All at once" onChange={(e) => setDecisionOpts(e.target.value)} />
+            <Button size="sm" variant="primary" onClick={handleDecision} disabled={decisionBusy || decisionQ.trim().length < 3 || decisionOptions.length < 2}>
+              {decisionBusy ? "Projecting outcomes…" : "Create decision room"}
+            </Button>
+            {decisionError && <div role="alert" style={{ fontSize: 12, color: "var(--danger, #C4262E)" }}>{decisionError}</div>}
+            <div style={{ fontSize: 11, color: "var(--ink-3)" }}>Adds a slide comparing each option's projected consequences. Go Live to let the audience vote.</div>
+          </div>
+        </Popover>
       )}
 
       {/* Chart Kind Picker Popover */}

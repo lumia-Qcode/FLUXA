@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api.js";
 import { usePresentations } from "../PresentationsContext.jsx";
@@ -7,20 +7,15 @@ import { THEMES, getTheme } from "../rendering/themes";
 import { LAYOUTS } from "../rendering/layouts";
 import { SlideStage } from "../rendering/SlideStage";
 import { postStream } from "../runtime/streamClient";
-import { Button, Select, NumberField } from "../ui";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Plus,
-  Trash2,
-  XCircle,
-  CheckCircle2,
-  Sliders,
-  Layers,
-  Sparkles,
-  MoveUp,
-  MoveDown,
-} from "lucide-react";
+import { TopBar } from "../components/outline/TopBar";
+import { OutlineDoc } from "../components/outline/OutlineDoc";
+import { PreviewPane } from "../components/outline/PreviewPane";
+import { BrandPanel } from "../components/outline/BrandPanel";
+import { PipelineTimeline } from "../components/outline/PipelineTimeline";
+import { buildPreviewSlide } from "../components/outline/previewSpec";
+import "../components/outline/outline.css";
+import { Button } from "../ui";
+import { ArrowRight } from "lucide-react";
 
 const AUDIENCES = [
   "General audience",
@@ -39,6 +34,46 @@ const TONES = [
 
 const LANGUAGES = ["English", "Urdu", "Spanish", "French", "German"];
 
+const MAX_SLIDES = 15;
+const MIN_SLIDES = 3;
+
+let keySeq = 0;
+const withKeys = (slides) => slides.map((s) => ({ ...s, _key: s._key || `o${++keySeq}` }));
+// UI-only fields never go to the API.
+const forApi = (outline) => ({
+  ...outline,
+  slides: outline.slides.map(({ _key, _feedback, ...rest }) => rest),
+});
+
+function outlineAsText(outline) {
+  return outline.slides
+    .map((s, i) => `${i + 1}. ${s.title}${s.purpose ? ` (${s.purpose})` : ""}`)
+    .join("\n");
+}
+
+function slideCountFor(instruction, current) {
+  const lower = instruction.toLowerCase();
+  if (/shorter|fewer|condense|trim/.test(lower)) return Math.max(MIN_SLIDES, current - 2);
+  if (/conclusion|add (a|one) slide|longer|expand/.test(lower)) return Math.min(MAX_SLIDES, current + 1);
+  return current;
+}
+
+const layoutName = (id) => (LAYOUTS.find((l) => l.id === id) || LAYOUTS[2]).name;
+const layoutDef = (id) => LAYOUTS.find((l) => l.id === id) || LAYOUTS[2];
+const toneOptions = TONES.map((t) => ({ value: t, label: t }));
+const themeOptions = THEMES.map((t) => ({ value: t.id, label: t.name }));
+
+function useElapsed(running, startedAt) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!running) return undefined;
+    setElapsed(Math.round((Date.now() - startedAt) / 1000));
+    const t = window.setInterval(() => setElapsed(Math.round((Date.now() - startedAt) / 1000)), 1000);
+    return () => window.clearInterval(t);
+  }, [running, startedAt]);
+  return elapsed;
+}
+
 export default function CreatePresentation() {
   const navigate = useNavigate();
   const { refresh } = usePresentations();
@@ -52,17 +87,62 @@ export default function CreatePresentation() {
   const [tone, setTone] = useState("Professional & Strategic");
   const [language, setLanguage] = useState("English");
   const [selectedThemeId, setSelectedThemeId] = useState("clean-light");
+  const [attachedDocName, setAttachedDocName] = useState("");
   const [error, setError] = useState("");
+  const [aiNotice, setAiNotice] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Outline drafting (timeline while the outline request runs)
+  const [drafting, setDrafting] = useState(false);
+  const [draftPaused, setDraftPaused] = useState(false);
+  const [draftStartedAt, setDraftStartedAt] = useState(0);
+  const [heldReady, setHeldReady] = useState(false);
+  const [draftLog, setDraftLog] = useState([]);
+  const heldOutlineRef = useRef(null);
+  const draftPausedRef = useRef(false);
+  const draftAbortRef = useRef(null);
+  const draftElapsed = useElapsed(drafting && !heldReady, draftStartedAt);
+
+  function handleFileUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAttachedDocName(file.name);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result;
+      if (typeof text === "string") {
+        setPrompt((prev) =>
+          prev
+            ? `${prev}\n\n[Attached Reference: ${file.name}]\n${text.slice(0, 4000)}`
+            : `[Attached Reference: ${file.name}]\n${text.slice(0, 4000)}`
+        );
+        if (!title) {
+          setTitle(file.name.replace(/\.[^/.]+$/, ""));
+        }
+      }
+    };
+    reader.readAsText(file);
+  }
 
   // Step 2: Outline state
   const [outline, setOutline] = useState(null);
   const [selectedOutlineIdx, setSelectedOutlineIdx] = useState(0);
+  const [refining, setRefining] = useState(false);
+  const [refineStatus, setRefineStatus] = useState("");
+  const [regeneratingIdx, setRegeneratingIdx] = useState(null);
+  const refineAbortRef = useRef(null);
 
   // Step 3: Generating state
   const [generatedSlides, setGeneratedSlides] = useState([]);
   const [progress, setProgress] = useState({ current: 0, total: 6 });
+  const [genPaused, setGenPaused] = useState(false);
+  const [readyPresId, setReadyPresId] = useState(null);
+  const [genLog, setGenLog] = useState([]);
+  const [brandId, setBrandId] = useState(null);
+  const [genStartedAt, setGenStartedAt] = useState(0);
+  const genPausedRef = useRef(false);
   const abortControllerRef = useRef(null);
+  const genElapsed = useElapsed(step === 3 && !readyPresId, genStartedAt);
 
   // Fallback / manual submission (per existing test compatibility)
   async function handleSubmit(event) {
@@ -95,6 +175,31 @@ export default function CreatePresentation() {
     }
   }
 
+  // Calls the existing outline endpoint. Returns the outline object.
+  async function requestOutline({ topic, title: t, count, signal }) {
+    const res = await fetch("/api/presentations/generate/outline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topic, title: t, slide_count: Number(count), audience, language }),
+      signal,
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "Failed to generate outline.");
+    }
+    const data = await res.json();
+    // The server says when a template stood in for the AI (e.g. free daily limit used up).
+    setAiNotice(data.ai?.mode === "fallback" ? data.ai.reasons?.[0] || "The AI was unavailable." : "");
+    return data.outline;
+  }
+
+  function showOutline(generatedOutline) {
+    setOutline({ ...generatedOutline, slides: withKeys(generatedOutline.slides || []) });
+    setSelectedOutlineIdx(0);
+    setDrafting(false);
+    setStep(2);
+  }
+
   // Step 1 -> Step 2: Generate Outline
   async function handleReviewOutline() {
     const cleanPrompt = prompt.trim();
@@ -105,65 +210,85 @@ export default function CreatePresentation() {
       return;
     }
 
+    const controller = new AbortController();
+    draftAbortRef.current = controller;
+    heldOutlineRef.current = null;
+    draftPausedRef.current = false;
+    setHeldReady(false);
     setBusy(true);
     setError("");
+    setDraftPaused(false);
+    setDraftStartedAt(Date.now());
+    setDraftLog([`Brief sent: ${slideCount} slides for ${audience.toLowerCase()}, in ${language}`, "Waiting for the AI model"]);
+    setDrafting(true);
 
     try {
-      const res = await fetch("/api/presentations/generate/outline", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topic: cleanPrompt || cleanTitle,
-          title: cleanTitle,
-          slide_count: Number(slideCount),
-          audience,
-          language,
-        }),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || "Failed to generate outline.");
-      }
-
-      const data = await res.json();
-      const generatedOutline = data.outline || {
+      const out = await requestOutline({
+        topic: cleanPrompt || cleanTitle,
         title: cleanTitle,
-        slides: [
-          { title: cleanTitle, layout: "title", purpose: "Introduction", visual: "none" },
-          { title: "Key Highlights", layout: "bullets", purpose: "Core narrative", visual: "none" },
-          { title: "Market Growth", layout: "chart-text", purpose: "Data metrics", visual: "chart" },
-        ],
-      };
-
-      setOutline(generatedOutline);
-      setSelectedOutlineIdx(0);
-      setStep(2);
+        count: slideCount,
+        signal: controller.signal,
+      });
+      // No stand-in outline: a canned "Key Highlights / Market Growth" deck is never about the topic.
+      if (!out || !Array.isArray(out.slides) || out.slides.length === 0) {
+        throw new Error("The outline could not be generated. Try again in a moment.");
+      }
+      const generatedOutline = out;
+      setDraftLog((l) => [...l, `Outline received: ${generatedOutline.slides?.length || 0} slides`]);
+      // Pause holds the arrived outline until the user resumes.
+      if (draftPausedRef.current) {
+        heldOutlineRef.current = generatedOutline;
+        setHeldReady(true);
+      } else {
+        showOutline(generatedOutline);
+      }
     } catch (err) {
-      setError(err.message || "Could not generate outline.");
+      setDrafting(false);
+      if (!controller.signal.aborted) setError(err.message || "Could not generate outline.");
     } finally {
       setBusy(false);
     }
   }
 
-  // Outline Editing Handlers (Step 2)
-  function handleUpdateOutlineItem(idx, field, value) {
-    if (!outline) return;
-    const nextSlides = [...outline.slides];
-    nextSlides[idx] = { ...nextSlides[idx], [field]: value };
-    setOutline({ ...outline, slides: nextSlides });
+  function handleToggleDraftPause() {
+    const next = !draftPaused;
+    draftPausedRef.current = next;
+    setDraftPaused(next);
+    if (!next && heldOutlineRef.current) {
+      const held = heldOutlineRef.current;
+      heldOutlineRef.current = null;
+      setHeldReady(false);
+      showOutline(held);
+    }
   }
 
-  function handleAddOutlineSlide() {
-    if (!outline) return;
-    const newSlide = {
-      title: "New Slide",
-      layout: "bullets",
-      purpose: "Supporting narrative",
-      visual: "none",
-    };
-    setOutline({ ...outline, slides: [...outline.slides, newSlide] });
-    setSelectedOutlineIdx(outline.slides.length);
+  function handleCancelDraft() {
+    draftAbortRef.current?.abort();
+    heldOutlineRef.current = null;
+    draftPausedRef.current = false;
+    setHeldReady(false);
+    setDrafting(false);
+    setDraftPaused(false);
+    setBusy(false);
+  }
+
+  // Outline Editing Handlers (Step 2)
+  function handleUpdateOutlineItem(idx, patch) {
+    setOutline((cur) => {
+      if (!cur) return cur;
+      const nextSlides = [...cur.slides];
+      nextSlides[idx] = { ...nextSlides[idx], ...patch };
+      return { ...cur, slides: nextSlides };
+    });
+  }
+
+  function handleInsertAfter(idx) {
+    if (!outline || outline.slides.length >= MAX_SLIDES) return;
+    const newSlide = withKeys([{ title: "New slide", layout: "bullets", purpose: "", visual: "none" }])[0];
+    const nextSlides = [...outline.slides];
+    nextSlides.splice(idx + 1, 0, newSlide);
+    setOutline({ ...outline, slides: nextSlides });
+    setSelectedOutlineIdx(idx + 1);
   }
 
   function handleDeleteOutlineSlide(idx) {
@@ -175,16 +300,69 @@ export default function CreatePresentation() {
     }
   }
 
-  function handleMoveOutlineSlide(idx, direction) {
-    if (!outline) return;
-    const targetIdx = idx + direction;
-    if (targetIdx < 0 || targetIdx >= outline.slides.length) return;
+  function handleMoveOutlineSlide(from, to) {
+    if (!outline || to < 0 || to >= outline.slides.length || from === to) return;
     const nextSlides = [...outline.slides];
-    const temp = nextSlides[idx];
-    nextSlides[idx] = nextSlides[targetIdx];
-    nextSlides[targetIdx] = temp;
+    const [moved] = nextSlides.splice(from, 1);
+    nextSlides.splice(to, 0, moved);
     setOutline({ ...outline, slides: nextSlides });
-    setSelectedOutlineIdx(targetIdx);
+    setSelectedOutlineIdx(to);
+  }
+
+  const baseTopic = () => prompt.trim() || title.trim() || outline?.title || "";
+
+  // Quick chips and the refine input reuse the existing outline endpoint.
+  async function handleRefine(instruction) {
+    if (!outline || refining) return;
+    const count = slideCountFor(instruction, outline.slides.length);
+    const controller = new AbortController();
+    refineAbortRef.current = controller;
+    setRefining(true);
+    setError("");
+    setRefineStatus(`Refining: “${instruction}”…`);
+    try {
+      const topic = `${baseTopic()}\n\nRevise this presentation outline. Instruction: ${instruction}.\nCurrent outline:\n${outlineAsText(outline)}`;
+      const out = await requestOutline({ topic, title: outline.title, count, signal: controller.signal });
+      if (!out?.slides?.length) throw new Error("The refined outline came back empty.");
+      setOutline({ ...outline, ...out, title: outline.title, slides: withKeys(out.slides) });
+      setSelectedOutlineIdx(0);
+      setRefineStatus(`Applied: “${instruction}”.`);
+    } catch (err) {
+      setRefineStatus("");
+      if (!controller.signal.aborted) setError(err.message || "Could not refine the outline.");
+      else setRefineStatus("Refinement stopped.");
+    } finally {
+      setRefining(false);
+    }
+  }
+
+  function handleStopRefine() {
+    refineAbortRef.current?.abort();
+  }
+
+  async function handleRegenerateItem(idx) {
+    if (!outline || regeneratingIdx !== null) return;
+    const item = outline.slides[idx];
+    setRegeneratingIdx(idx);
+    setError("");
+    try {
+      const topic = `${baseTopic()}\n\nWrite one alternative slide to replace slide ${idx + 1}: “${item.title}”${
+        item.purpose ? ` (${item.purpose})` : ""
+      }. Keep it consistent with the rest of the outline:\n${outlineAsText(outline)}`;
+      const out = await requestOutline({ topic, title: outline.title, count: 1 });
+      const alt = out?.slides?.[0];
+      if (!alt) throw new Error("No alternative slide came back.");
+      setOutline((cur) => {
+        if (!cur) return cur;
+        const next = [...cur.slides];
+        next[idx] = { ...next[idx], ...alt, _key: next[idx]._key, _feedback: null };
+        return { ...cur, slides: next };
+      });
+    } catch (err) {
+      setError(err.message || "Could not regenerate that slide.");
+    } finally {
+      setRegeneratingIdx(null);
+    }
   }
 
   // Step 2 -> Step 3: Stream Slide Generation
@@ -194,6 +372,11 @@ export default function CreatePresentation() {
     setGeneratedSlides([]);
     setProgress({ current: 0, total: outline.slides.length });
     setError("");
+    setGenPaused(false);
+    genPausedRef.current = false;
+    setReadyPresId(null);
+    setGenStartedAt(Date.now());
+    setGenLog([`Generating ${outline.slides.length} slides in ${getTheme(selectedThemeId).name}`]);
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -208,19 +391,34 @@ export default function CreatePresentation() {
           audience,
           language,
           theme: selectedThemeId,
-          outline: outline,
+          outline: forApi(outline),
+          brand_id: brandId || undefined,
           stream: true,
         },
         {
+          // Live progress from the research and writing stages ("Searching sources", "Writing slides 1-4").
+          onText: (data) => {
+            const m = /\[PROGRESS: (.*)\]/.exec(data?.delta || "");
+            if (m) setGenLog((l) => (l[l.length - 1] === m[1] ? l : [...l, m[1]]));
+          },
+          onResearchComplete: (data) => {
+            setGenLog((l) => [...l, data?.status || "Research complete", ...((data?.limitations || []).map((x) => `Note: ${x}`))]);
+          },
           onSlide: (slideData) => {
             setGeneratedSlides((prev) => [...prev, slideData.slide]);
+            setGenLog((l) => [...l, `Slide ${slideData.index + 1} ready: ${slideData.slide?.title || ""}`]);
           },
           onProgress: (prog) => {
             setProgress(prog);
           },
           onDone: async (doneData) => {
             const presId = doneData.presentation?.id;
+            setGenLog((l) => [...l, "Deck saved"]);
             await refresh();
+            if (genPausedRef.current && presId) {
+              setReadyPresId(presId);
+              return;
+            }
             if (presId) {
               navigate(`/presentations/${presId}`);
             } else {
@@ -240,6 +438,13 @@ export default function CreatePresentation() {
     }
   }
 
+  function handleToggleGenPause() {
+    const next = !genPaused;
+    setGenPaused(next);
+    genPausedRef.current = next;
+    if (!next && readyPresId) navigate(`/presentations/${readyPresId}`);
+  }
+
   function handleCancelGeneration() {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -247,61 +452,61 @@ export default function CreatePresentation() {
     setStep(2);
   }
 
-  // Construct a live dummy slide for previewing layout in chosen theme (Step 2)
-  const currentOutlineItem = outline?.slides[selectedOutlineIdx] || {
-    title: "Slide Title",
-    layout: "bullets",
-  };
-  const activeLayoutDef =
-    LAYOUTS.find((l) => l.id === currentOutlineItem.layout) || LAYOUTS[2];
+  // Keyboard: Ctrl/Cmd+Enter generates slides, "/" focuses the refine input (step 2).
+  useEffect(() => {
+    if (step !== 2) return undefined;
+    const onKey = (e) => {
+      const tag = (e.target?.tagName || "").toLowerCase();
+      const typing = tag === "input" || tag === "textarea" || tag === "select";
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        handleStartGeneration();
+      } else if (e.key === "/" && !typing) {
+        e.preventDefault();
+        document.querySelector(".fx-ask input")?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
-  const previewSlideSpec = {
-    id: "preview-spec",
-    layout: currentOutlineItem.layout || "bullets",
-    background: { type: "color", value: "transparent" },
-    transition: { effect: "none", duration: 300 },
-    blocks: activeLayoutDef.slots.map((slot, sIdx) => {
-      if (slot.role === "title") {
-        return {
-          id: `preview-b-${sIdx}`,
-          type: "text",
-          role: "title",
-          box: { x: slot.x, y: slot.y, w: slot.w, h: slot.h },
-          props: { text: currentOutlineItem.title || "Slide Title", bold: true, fontSize: 44 },
-        };
-      }
-      if (slot.role === "chart") {
-        return {
-          id: `preview-b-${sIdx}`,
-          type: "chart",
-          role: "chart",
-          box: { x: slot.x, y: slot.y, w: slot.w, h: slot.h },
-          props: { kind: "bar", title: "Metrics Overview" },
-        };
-      }
-      if (slot.role === "kpi") {
-        return {
-          id: `preview-b-${sIdx}`,
-          type: "kpi",
-          role: "kpi",
-          box: { x: slot.x, y: slot.y, w: slot.w, h: slot.h },
-          props: { value: 85, label: "Efficiency", delta: "+12%" },
-        };
-      }
-      return {
-        id: `preview-b-${sIdx}`,
-        type: "text",
-        role: slot.role,
-        box: { x: slot.x, y: slot.y, w: slot.w, h: slot.h },
-        props: {
-          bullets: ["Primary insight and direction", "Supporting analysis and baseline"],
-          fontSize: 22,
-        },
-      };
-    }),
-  };
+  const theme = getTheme(selectedThemeId);
+  const toneChip = { label: "Tone", value: tone, options: toneOptions, onChange: setTone, disabled: busy || step === 3, hideOnSmall: true };
 
-  return (
+  const errorBanner = error ? (
+    <div role="alert" className="fx-error">
+      {error}
+    </div>
+  ) : null;
+
+  const aiNoticeBanner = aiNotice ? (
+    <div role="status" className="fx-notice">
+      <strong>The AI wasn't available, so this is a template.</strong> {aiNotice} Edit it, or try again later.
+    </div>
+  ) : null;
+
+  const briefCard = (
+    <aside className="fx-paper fx-brief-card" aria-label="Your brief">
+      <h2>Your brief</h2>
+      <blockquote>{(title.trim() || prompt.trim() || outline?.title || "").slice(0, 220)}</blockquote>
+      <dl>
+        <dt>Slides</dt>
+        <dd>{step === 3 ? outline?.slides.length : slideCount}</dd>
+        <dt>Audience</dt>
+        <dd>{audience}</dd>
+        <dt>Tone</dt>
+        <dd>{tone}</dd>
+        <dt>Language</dt>
+        <dd>{language}</dd>
+        <dt>Theme</dt>
+        <dd>{theme.name}</dd>
+      </dl>
+    </aside>
+  );
+
+  // ================= STEP 1: DESCRIBE (original layout, kept as it was) =================
+  if (step === 1 && !drafting) {
+    return (
     <div
       style={{
         minHeight: "100vh",
@@ -386,7 +591,6 @@ export default function CreatePresentation() {
           </div>
         )}
 
-        {/* ================= STEP 1: DESCRIBE ================= */}
         {step === 1 && (
           <div>
             <div style={{ marginBottom: "24px" }}>
@@ -451,6 +655,51 @@ export default function CreatePresentation() {
               </div>
 
               <PromptInput value={prompt} onChange={setPrompt} disabled={busy} />
+
+              {/* Kimi Slides: Document & Notes to Slides Attachment Bar */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 14px",
+                  background: "var(--bg-app, #F9FAFB)",
+                  border: "1px dashed var(--line, #E5E7EB)",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--ink-secondary, #64748B)" }}>
+                  <span>📎 Documents to Slides:</span>
+                  {attachedDocName ? (
+                    <span style={{ fontWeight: 600, color: "var(--theme-primary, #2563EB)" }}>
+                      ✓ {attachedDocName}
+                    </span>
+                  ) : (
+                    <span>Attach .txt, .md, .csv, notes, or paper</span>
+                  )}
+                </div>
+                <label
+                  style={{
+                    padding: "4px 12px",
+                    background: "var(--bg-card, #FFFFFF)",
+                    border: "1px solid var(--line, #E5E7EB)",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: "var(--ink, #111827)",
+                  }}
+                >
+                  Upload Document
+                  <input
+                    type="file"
+                    accept=".txt,.md,.markdown,.csv,.json"
+                    onChange={handleFileUpload}
+                    style={{ display: "none" }}
+                  />
+                </label>
+              </div>
 
               {/* Compact preferences row */}
               <div
@@ -666,508 +915,186 @@ export default function CreatePresentation() {
             </div>
           </div>
         )}
-
-        {/* ================= STEP 2: REVIEW OUTLINE ================= */}
-        {step === 2 && outline && (
-          <div>
-            <div style={{ marginBottom: "24px" }}>
-              <h1
-                style={{
-                  fontSize: "24px",
-                  fontWeight: 600,
-                  margin: "0 0 8px",
-                  color: "var(--ink)",
-                }}
-              >
-                Review outline
-              </h1>
-              <p style={{ margin: 0, fontSize: "14px", color: "var(--ink-2)" }}>
-                Refine slide titles, choose layout structures, or reorder before generation.
-              </p>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 420px",
-                gap: "24px",
-                alignItems: "start",
-              }}
-            >
-              {/* Left Column: Editable List */}
-              <div
-                style={{
-                  background: "var(--bg-panel)",
-                  border: "1px solid var(--line)",
-                  borderRadius: "6px",
-                  padding: "16px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
-                }}
-              >
-                <div style={{ marginBottom: "8px" }}>
-                  <label
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      color: "var(--ink-2)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                    }}
-                  >
-                    Deck Title
-                  </label>
-                  <input
-                    type="text"
-                    value={outline.title}
-                    onChange={(e) => setOutline({ ...outline, title: e.target.value })}
-                    style={{
-                      width: "100%",
-                      padding: "8px 10px",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      border: "1px solid var(--line)",
-                      borderRadius: "4px",
-                      background: "var(--bg-app)",
-                      color: "var(--ink)",
-                      boxSizing: "border-box",
-                      marginTop: "4px",
-                    }}
-                  />
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "8px",
-                    maxHeight: "500px",
-                    overflowY: "auto",
-                  }}
-                >
-                  {outline.slides.map((item, idx) => {
-                    const isSelected = selectedOutlineIdx === idx;
-                    return (
-                      <div
-                        key={idx}
-                        onClick={() => setSelectedOutlineIdx(idx)}
-                        style={{
-                          padding: "12px",
-                          borderRadius: "4px",
-                          border: isSelected
-                            ? "1px solid var(--signal)"
-                            : "1px solid var(--line)",
-                          background: isSelected ? "var(--signal-weak)" : "var(--bg-app)",
-                          cursor: "pointer",
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "8px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: "12px",
-                              fontWeight: 600,
-                              color: isSelected ? "var(--signal)" : "var(--ink-2)",
-                            }}
-                          >
-                            Slide {idx + 1}
-                          </span>
-
-                          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleMoveOutlineSlide(idx, -1);
-                              }}
-                              disabled={idx === 0}
-                              style={{
-                                background: "none",
-                                border: "none",
-                                cursor: idx === 0 ? "default" : "pointer",
-                                opacity: idx === 0 ? 0.3 : 1,
-                                color: "var(--ink-2)",
-                                padding: "2px",
-                              }}
-                            >
-                              <MoveUp size={13} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleMoveOutlineSlide(idx, 1);
-                              }}
-                              disabled={idx === outline.slides.length - 1}
-                              style={{
-                                background: "none",
-                                border: "none",
-                                cursor:
-                                  idx === outline.slides.length - 1
-                                    ? "default"
-                                    : "pointer",
-                                opacity: idx === outline.slides.length - 1 ? 0.3 : 1,
-                                color: "var(--ink-2)",
-                                padding: "2px",
-                              }}
-                            >
-                              <MoveDown size={13} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteOutlineSlide(idx);
-                              }}
-                              disabled={outline.slides.length <= 1}
-                              style={{
-                                background: "none",
-                                border: "none",
-                                cursor:
-                                  outline.slides.length <= 1 ? "default" : "pointer",
-                                opacity: outline.slides.length <= 1 ? 0.3 : 1,
-                                color: "var(--danger)",
-                                padding: "2px 4px",
-                              }}
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        </div>
-
-                        <input
-                          type="text"
-                          value={item.title}
-                          onChange={(e) =>
-                            handleUpdateOutlineItem(idx, "title", e.target.value)
-                          }
-                          style={{
-                            width: "100%",
-                            padding: "6px 8px",
-                            fontSize: "13px",
-                            fontWeight: 500,
-                            border: "1px solid var(--line)",
-                            borderRadius: "4px",
-                            background: "var(--bg-panel)",
-                            color: "var(--ink)",
-                            boxSizing: "border-box",
-                          }}
-                        />
-
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "8px",
-                          }}
-                        >
-                          <select
-                            value={item.layout}
-                            onChange={(e) =>
-                              handleUpdateOutlineItem(idx, "layout", e.target.value)
-                            }
-                            style={{
-                              flex: 1,
-                              padding: "4px 8px",
-                              fontSize: "12px",
-                              border: "1px solid var(--line)",
-                              borderRadius: "4px",
-                              background: "var(--bg-panel)",
-                              color: "var(--ink)",
-                            }}
-                          >
-                            {LAYOUTS.map((l) => (
-                              <option key={l.id} value={l.id}>
-                                {l.name}
-                              </option>
-                            ))}
-                          </select>
-
-                          <span
-                            style={{
-                              fontSize: "11px",
-                              padding: "2px 6px",
-                              borderRadius: "4px",
-                              background: "var(--line)",
-                              color: "var(--ink-2)",
-                            }}
-                          >
-                            {item.visual || "none"}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleAddOutlineSlide}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "6px",
-                    marginTop: "8px",
-                  }}
-                >
-                  <Plus size={14} />
-                  <span>Add slide</span>
-                </Button>
-              </div>
-
-              {/* Right Column: Live Layout Preview in Theme */}
-              <div
-                style={{
-                  background: "var(--bg-panel)",
-                  border: "1px solid var(--line)",
-                  borderRadius: "6px",
-                  padding: "16px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--ink)" }}>
-                    Slide {selectedOutlineIdx + 1} Preview
-                  </span>
-                  <span style={{ fontSize: "12px", color: "var(--ink-2)" }}>
-                    Theme: {getTheme(selectedThemeId).name}
-                  </span>
-                </div>
-
-                {/* 16:9 Thumbnail container */}
-                <div
-                  style={{
-                    width: "100%",
-                    aspectRatio: "16 / 9",
-                    borderRadius: "4px",
-                    overflow: "hidden",
-                    border: "1px solid var(--line)",
-                    background: "var(--bg-well)",
-                  }}
-                >
-                  <SlideStage
-                    slide={previewSlideSpec}
-                    theme={getTheme(selectedThemeId)}
-                    mode="thumbnail"
-                  />
-                </div>
-
-                <div>
-                  <h4 style={{ margin: "0 0 4px", fontSize: "13px", color: "var(--ink)" }}>
-                    {activeLayoutDef.name}
-                  </h4>
-                  <p style={{ margin: 0, fontSize: "12px", color: "var(--ink-2)", lineHeight: 1.4 }}>
-                    {activeLayoutDef.description}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Step 2 Actions */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginTop: "24px",
-                paddingTop: "16px",
-                borderTop: "1px solid var(--line)",
-              }}
-            >
-              <Button
-                variant="outline"
-                onClick={() => setStep(1)}
-                style={{ display: "flex", alignItems: "center", gap: "8px" }}
-              >
-                <ArrowLeft size={14} />
-                <span>Back to describe</span>
-              </Button>
-
-              <Button
-                variant="primary"
-                onClick={handleStartGeneration}
-                style={{ display: "flex", alignItems: "center", gap: "8px" }}
-              >
-                <span>Generate slides</span>
-                <ArrowRight size={14} />
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* ================= STEP 3: GENERATING ================= */}
-        {step === 3 && (
-          <div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: "24px",
-              }}
-            >
-              <div>
-                <h1
-                  style={{
-                    fontSize: "24px",
-                    fontWeight: 600,
-                    margin: "0 0 8px",
-                    color: "var(--ink)",
-                  }}
-                >
-                  Generating slides
-                </h1>
-                <p style={{ margin: 0, fontSize: "14px", color: "var(--ink-2)" }}>
-                  Slide {progress.current} of {progress.total}
-                </p>
-              </div>
-
-              <Button variant="outline" onClick={handleCancelGeneration}>
-                Cancel
-              </Button>
-            </div>
-
-            {/* Real Progress Bar */}
-            <div
-              style={{
-                width: "100%",
-                height: "6px",
-                background: "var(--line)",
-                borderRadius: "3px",
-                overflow: "hidden",
-                marginBottom: "32px",
-              }}
-            >
-              <div
-                style={{
-                  height: "100%",
-                  width: `${
-                    progress.total > 0
-                      ? Math.min(100, Math.round((progress.current / progress.total) * 100))
-                      : 0
-                  }%`,
-                  background: "var(--signal)",
-                  transition: "width 300ms ease",
-                }}
-              />
-            </div>
-
-            {/* Generated Slides Arrival Grid */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-                gap: "20px",
-              }}
-            >
-              {outline?.slides.map((item, idx) => {
-                const arrivedSlide = generatedSlides[idx];
-                const isArrived = Boolean(arrivedSlide);
-
-                return (
-                  <div
-                    key={idx}
-                    style={{
-                      background: "var(--bg-panel)",
-                      border: isArrived
-                        ? "1px solid var(--signal)"
-                        : "1px dashed var(--line)",
-                      borderRadius: "6px",
-                      padding: "16px",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "12px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          color: isArrived ? "var(--signal)" : "var(--ink-3)",
-                        }}
-                      >
-                        Slide {idx + 1}
-                      </span>
-                      {isArrived ? (
-                        <CheckCircle2 size={15} color="var(--ok, #1B7F4B)" />
-                      ) : (
-                        <span style={{ fontSize: "11px", color: "var(--ink-3)" }}>
-                          Waiting...
-                        </span>
-                      )}
-                    </div>
-
-                    <div
-                      style={{
-                        width: "100%",
-                        aspectRatio: "16 / 9",
-                        borderRadius: "4px",
-                        overflow: "hidden",
-                        background: "var(--bg-well)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      {isArrived && arrivedSlide.spec ? (
-                        <SlideStage
-                          slide={arrivedSlide.spec}
-                          theme={getTheme(selectedThemeId)}
-                          mode="thumbnail"
-                        />
-                      ) : (
-                        <span style={{ fontSize: "12px", color: "var(--ink-3)" }}>
-                          {item.layout}
-                        </span>
-                      )}
-                    </div>
-
-                    <p
-                      style={{
-                        margin: 0,
-                        fontSize: "13px",
-                        fontWeight: 500,
-                        color: isArrived ? "var(--ink)" : "var(--ink-2)",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {item.title}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </div>
+    </div>
+    );
+  }
+
+  // ================= DRAFTING THE OUTLINE (timeline) =================
+  if (step === 1 && drafting) {
+    return (
+      <div className="fx-outline">
+        <TopBar
+          title={title.trim() || prompt.trim().slice(0, 60) || "New presentation"}
+          subtitle="Drafting your outline"
+          step={2}
+          onBack={handleCancelDraft}
+          backLabel="Cancel and return to describe"
+          chips={[toneChip]}
+        />
+        <main className="fx-pipe">
+          <div>
+            {errorBanner}
+            <PipelineTimeline
+              heading={heldReady ? "Your outline is ready" : "Drafting your outline"}
+              subheading={heldReady ? "Paused. Resume to open it in the editor." : "This usually takes under a minute."}
+              elapsedSeconds={draftElapsed}
+              paused={draftPaused}
+              onTogglePause={handleToggleDraftPause}
+              onCancel={handleCancelDraft}
+              log={draftLog}
+              steps={[
+                { id: "brief", title: "Brief received", status: "done", note: `${slideCount} slides, ${audience.toLowerCase()}, ${language}` },
+                {
+                  id: "draft",
+                  title: "Drafting outline",
+                  status: heldReady ? "done" : "active",
+                  note: heldReady ? "Outline received" : draftPaused ? "Paused: the outline will wait for you" : "The AI is structuring your story",
+                },
+                { id: "review", title: "Review and refine", status: heldReady ? "active" : "pending", note: "Edit titles, reorder, pick layouts" },
+              ]}
+            />
+          </div>
+          {briefCard}
+        </main>
+      </div>
+    );
+  }
+
+  // ================= STEP 3: GENERATING SLIDES (timeline) =================
+  if (step === 3) {
+    const total = outline?.slides.length || progress.total;
+    return (
+      <div className="fx-outline">
+        <TopBar
+          title={outline?.title || "Generating slides"}
+          subtitle="Generating slides"
+          step={3}
+          onBack={handleCancelGeneration}
+          backLabel="Cancel generation and return to the outline"
+        />
+        <main className="fx-pipe">
+          <div>
+            {errorBanner}
+            <PipelineTimeline
+              heading={readyPresId ? "Your slides are ready" : "Generating slides"}
+              subheading={readyPresId ? "Paused. Resume to open the editor." : `${generatedSlides.length} of ${total} ready`}
+              elapsedSeconds={genElapsed}
+              paused={genPaused}
+              onTogglePause={handleToggleGenPause}
+              onCancel={handleCancelGeneration}
+              log={genLog}
+              steps={[
+                { id: "outline", title: "Outline approved", status: "done", note: `${total} slides` },
+                {
+                  id: "slides",
+                  title: "Writing and designing slides",
+                  status: generatedSlides.length >= total && total > 0 ? "done" : "active",
+                  note: genPaused ? "Paused: the editor opens when you resume" : `${generatedSlides.length} of ${total} ready`,
+                  detail: (
+                    <div className="fx-thumbs">
+                      {outline?.slides.map((item, idx) => {
+                        const arrived = generatedSlides[idx];
+                        return (
+                          <div key={item._key ?? idx} className={`fx-thumb ${arrived ? "is-ready" : ""}`}>
+                            <div className="fx-thumb-img">
+                              {arrived?.spec ? <SlideStage slide={arrived.spec} theme={theme} mode="thumbnail" /> : <span>{layoutName(item.layout)}</span>}
+                            </div>
+                            <p>
+                              {idx + 1}. {item.title}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ),
+                },
+                { id: "open", title: "Open in the editor", status: readyPresId ? "active" : "pending" },
+              ]}
+            />
+          </div>
+          {briefCard}
+        </main>
+      </div>
+    );
+  }
+
+  // ================= STEP 2: OUTLINE DOCUMENT + LIVE PREVIEW =================
+  if (!outline) return null;
+  const current = outline.slides[selectedOutlineIdx] || outline.slides[0];
+  const previewSlide = buildPreviewSlide(current, layoutDef(current.layout), outline.title);
+  const sources = outline.research_dossier?.citations || [];
+
+  return (
+    <div className="fx-outline">
+      <TopBar
+        title={outline.title || "Review outline"}
+        subtitle="Edit the outline, then generate slides"
+        step={2}
+        onBack={() => setStep(1)}
+        backLabel="Back to describe"
+        chips={[
+          toneChip,
+          { label: "Theme", value: selectedThemeId, options: themeOptions, onChange: setSelectedThemeId, hideOnSmall: true },
+        ]}
+        action={
+          <button
+            type="button"
+            className="fx-btn is-primary"
+            onClick={handleStartGeneration}
+            disabled={refining || regeneratingIdx !== null}
+            title="Generate slides (Ctrl + Enter)"
+          >
+            Generate slides
+            <ArrowRight size={16} aria-hidden="true" />
+          </button>
+        }
+      />
+      <main className="fx-work">
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+          {errorBanner}
+          {aiNoticeBanner}
+          <OutlineDoc
+            deckTitle={outline.title}
+            onDeckTitleChange={(t) => setOutline({ ...outline, title: t })}
+            meta={[`${outline.slides.length} slides`, audience, language, theme.name]}
+            items={outline.slides}
+            layoutName={layoutName}
+            selectedIdx={selectedOutlineIdx}
+            onSelect={setSelectedOutlineIdx}
+            onUpdate={handleUpdateOutlineItem}
+            onMove={handleMoveOutlineSlide}
+            onDelete={handleDeleteOutlineSlide}
+            onInsertAfter={handleInsertAfter}
+            onRegenerate={handleRegenerateItem}
+            regeneratingIdx={regeneratingIdx}
+            maxItems={MAX_SLIDES}
+            sources={sources}
+            disabled={refining}
+          />
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+        <PreviewPane
+          slide={previewSlide}
+          theme={theme}
+          themeName={theme.name}
+          index={selectedOutlineIdx}
+          total={outline.slides.length}
+          onPrev={() => setSelectedOutlineIdx((i) => Math.max(0, i - 1))}
+          onNext={() => setSelectedOutlineIdx((i) => Math.min(outline.slides.length - 1, i + 1))}
+          layouts={LAYOUTS}
+          layoutId={current.layout}
+          onLayout={(id) => handleUpdateOutlineItem(selectedOutlineIdx, { layout: id })}
+          onRefine={handleRefine}
+          onStopRefine={handleStopRefine}
+          refining={refining}
+          status={refineStatus}
+          disabled={refining}
+        />
+        <BrandPanel value={brandId} onChange={setBrandId} disabled={refining} />
+        </div>
+      </main>
     </div>
   );
 }

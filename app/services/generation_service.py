@@ -33,6 +33,9 @@ def save_generated_presentation(
     slides: list,
     theme: dict = None,
     datasets: dict = None,
+    variables: dict = None,
+    org_id: int = None,
+    owner_id: int = None,
 ) -> dict:
     """Store a generated presentation and its slides; return the saved rows."""
 
@@ -41,13 +44,14 @@ def save_generated_presentation(
     try:
         theme_json = json.dumps(theme) if theme else json.dumps({"themeId": "default"})
         datasets_json = json.dumps(datasets) if datasets else "{}"
+        variables_json = json.dumps(variables) if variables else "{}"
 
         cursor = connection.execute(
             """
-            INSERT INTO presentations (title, description, theme, datasets)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO presentations (title, description, theme, datasets, variables, org_id, owner_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (title, description, theme_json, datasets_json),
+            (title, description, theme_json, datasets_json, variables_json, org_id, owner_id),
         )
         presentation_id = cursor.lastrowid
 

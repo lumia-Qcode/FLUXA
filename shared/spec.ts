@@ -65,6 +65,9 @@ export const LayoutIdSchema = z.enum([
   "quote",
   "timeline",
   "comparison",
+  "swot",
+  "market-size",
+  "funnel",
   "full-bleed",
   "blank",
 ]);
@@ -116,9 +119,11 @@ export type DatasetColumn = z.infer<typeof DatasetColumnSchema>;
 export const DatasetSchema = z.object({
   id: z.string().min(1),
   name: z.string(),
-  source: z.enum(["user", "import", "ai-estimate"]),
+  source: z.enum(["user", "import", "ai-estimate", "research"]),
   columns: z.array(DatasetColumnSchema),
   rows: z.array(z.record(z.string(), z.union([z.string(), z.number(), z.null()]))),
+  /** Research datasets: reference lines of the sources the values were taken from. */
+  citations: z.array(z.string()).optional(),
 });
 export type Dataset = z.infer<typeof DatasetSchema>;
 

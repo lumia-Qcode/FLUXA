@@ -1,8 +1,20 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { SlideStage } from "../rendering/SlideStage";
-import { getTheme, Theme } from "../rendering/themes";
+import { getTheme, resolveDeckTheme, Theme } from "../rendering/themes";
 import { Dataset, Slide, Variable } from "../../../shared/spec";
+import {
+  LiveSessionState,
+  LivePoll,
+  startLiveSession,
+  syncSlideIndex,
+  pingLiveSession,
+  closeLivePoll,
+} from "../components/live/liveApi";
+import { LiveMeetingModal } from "../components/live/LiveMeetingModal";
+import { LiveMeetingQRCodeOverlay } from "../components/live/LiveMeetingQRCodeOverlay";
+import { LivePollOverlay } from "../components/live/LivePollOverlay";
+import { LiveCommentsDrawer } from "../components/live/LiveCommentsDrawer";
 
 export const PresenterPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +31,14 @@ export const PresenterPage: React.FC = () => {
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [isTimerRunning, setIsTimerRunning] = useState<boolean>(true);
 
+  // Live session state
+  const [liveSession, setLiveSession] = useState<LiveSessionState | null>(null);
+  const [isLiveModalOpen, setIsLiveModalOpen] = useState<boolean>(false);
+  const [isCommentsOpen, setIsCommentsOpen] = useState<boolean>(false);
+  const [attendeeCount, setAttendeeCount] = useState<number>(1);
+  const [activePoll, setActivePoll] = useState<LivePoll | null>(null);
+  const [showOnScreenQR, setShowOnScreenQR] = useState<boolean>(false);
+
   const channelRef = useRef<BroadcastChannel | null>(null);
 
   // Initialize presentation data
@@ -33,8 +53,8 @@ export const PresenterPage: React.FC = () => {
             setSlides(p.slides || []);
             setDatasets(p.datasets || {});
             setVariables(p.variables || {});
-            if (p.theme?.themeId) {
-              setTheme(getTheme(p.theme.themeId));
+            if (p.theme?.themeId || p.brand) {
+              setTheme(resolveDeckTheme(p.theme?.themeId, p.brand, p.theme?.fontPairing));
             }
           }
         }
@@ -90,7 +110,7 @@ export const PresenterPage: React.FC = () => {
   const currentSlideSpec = (currentSlide as any)?.spec?.blocks ? (currentSlide as any).spec : currentSlide;
   const currentNotes = (currentSlide as any)?.spec?.notes || currentSlide?.notes || "";
 
-  // Send navigation event to main window
+  // Send navigation event to main window and live session
   const broadcastNav = (newIndex: number, newBuild: number) => {
     setCurrentIndex(newIndex);
     setBuildStep(newBuild);
@@ -101,7 +121,49 @@ export const PresenterPage: React.FC = () => {
         buildStep: newBuild,
       });
     }
+    if (liveSession?.session_id) {
+      syncSlideIndex(liveSession.session_id, newIndex, liveSession.host_token).catch(() => {});
+    }
   };
+
+  const handleStartOrOpenLive = async () => {
+    if (liveSession) {
+      setIsLiveModalOpen(true);
+      return;
+    }
+    if (!id) return;
+    try {
+      const sess = await startLiveSession(id, "Presenter");
+      setLiveSession(sess);
+      setIsLiveModalOpen(true);
+    } catch (err) {
+      console.error("Failed to start live session", err);
+    }
+  };
+
+  // Heartbeat for live session
+  useEffect(() => {
+    if (!liveSession?.session_id) return;
+    let isMounted = true;
+
+    async function ping() {
+      try {
+        const state = await pingLiveSession(liveSession!.session_id);
+        if (!isMounted) return;
+        setAttendeeCount(state.participants_count || 1);
+        setActivePoll(state.active_poll || null);
+      } catch (err) {
+        // silent
+      }
+    }
+
+    ping();
+    const interval = setInterval(ping, 2500);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [liveSession?.session_id]);
 
   const handleNext = () => {
     if (!currentSlideSpec) return;
@@ -228,6 +290,43 @@ export const PresenterPage: React.FC = () => {
             }}
           >
             Reset
+          </button>
+        </div>
+
+        {/* Live Broadcast Studio Pill */}
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <button
+            type="button"
+            onClick={handleStartOrOpenLive}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "7px",
+              padding: "5px 14px",
+              fontSize: "12px",
+              fontWeight: 600,
+              borderRadius: "20px",
+              border: liveSession
+                ? "1px solid rgba(16, 185, 129, 0.45)"
+                : "1px solid rgba(255, 255, 255, 0.15)",
+              background: liveSession
+                ? "rgba(16, 185, 129, 0.12)"
+                : "rgba(255, 255, 255, 0.05)",
+              color: liveSession ? "#34D399" : "#EDEDEF",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+          >
+            <span
+              style={{
+                width: "7px",
+                height: "7px",
+                borderRadius: "50%",
+                background: liveSession ? "#10B981" : "#94A3B8",
+                boxShadow: liveSession ? "0 0 8px #10B981" : "none",
+              }}
+            />
+            <span>{liveSession ? `Live Hub (${attendeeCount})` : "Go Live"}</span>
           </button>
         </div>
 
@@ -371,6 +470,56 @@ export const PresenterPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Live Meeting Moderator Modal */}
+      {liveSession && (
+        <LiveMeetingModal
+          session={liveSession}
+          currentSlideIndex={currentIndex}
+          isOpen={isLiveModalOpen}
+          onClose={() => setIsLiveModalOpen(false)}
+          onSessionEnded={() => setLiveSession(null)}
+          onPollCreated={(poll) => setActivePoll(poll)}
+          onPollClosed={() => setActivePoll(null)}
+          onToggleOnScreenQR={() => setShowOnScreenQR((prev) => !prev)}
+          isOnScreenQREnabled={showOnScreenQR}
+        />
+      )}
+
+      {/* On-Screen QR Code Badge for Room Audience */}
+      {liveSession && showOnScreenQR && (
+        <LiveMeetingQRCodeOverlay
+          presentationId={liveSession.presentation_id}
+          sessionId={liveSession.session_id}
+          meetingCode={liveSession.meeting_code}
+          onClose={() => setShowOnScreenQR(false)}
+        />
+      )}
+
+      {/* Live Poll Overlay for Presenter view */}
+      {liveSession && activePoll && (
+        <LivePollOverlay
+          poll={activePoll}
+          isModerator={true}
+          onVote={async () => {}}
+          onClosePoll={async () => {
+            if (activePoll) await closeLivePoll(activePoll.id);
+            setActivePoll(null);
+          }}
+        />
+      )}
+
+      {/* Live Comments and Reactions Drawer */}
+      {liveSession && (
+        <LiveCommentsDrawer
+          sessionId={liveSession.session_id}
+          participantId={liveSession.host_token}
+          participantName="Presenter (Host)"
+          currentSlideIndex={currentIndex}
+          isOpen={isCommentsOpen}
+          onToggle={() => setIsCommentsOpen(!isCommentsOpen)}
+        />
+      )}
     </div>
   );
 };

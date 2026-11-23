@@ -111,9 +111,11 @@ class DatasetColumn(BaseModel):
 class Dataset(BaseModel):
     id: str = Field(min_length=1)
     name: str
-    source: Literal["user", "import", "ai-estimate"]
+    source: Literal["user", "import", "ai-estimate", "research"]
     columns: list[DatasetColumn] = Field(default_factory=list)
     rows: list[dict[str, Any]] = Field(default_factory=list)
+    # Research datasets: values taken from retrieved sources; these are their reference lines.
+    citations: Optional[list[str]] = None
 
 
 class Variable(BaseModel):

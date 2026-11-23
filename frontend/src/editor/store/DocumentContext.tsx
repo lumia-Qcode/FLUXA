@@ -56,6 +56,18 @@ export const DocumentProvider: React.FC<{
   const saveTimerRef = useRef<number | null>(null);
   const isSavingRef = useRef(false);
   const pendingSaveDocRef = useRef<DeckDocument | null>(null);
+  // Latest revision the server confirmed. A save queued while another was running holds the
+  // old revision; sending that caused false "conflicting changes" prompts.
+  const lastRevisionRef = useRef<number>(initialDoc.revision || 1);
+  // Server ids of the slides this deck has on the server: loaded slides are "slide-<id>".
+  // Used to create new slides, delete removed ones and keep the order in sync.
+  const serverSlideIdsRef = useRef<Map<string, number>>(
+    new Map(
+      initialDoc.slides
+        .map((s) => [s.id, (s as any).dbId ?? Number((/^slide-(\d{1,9})$/.exec(s.id) || [])[1])] as [string, number])
+        .filter(([, n]) => Number.isFinite(n))
+    )
+  );
 
   const doc = storeState.doc;
 
@@ -85,7 +97,7 @@ export const DocumentProvider: React.FC<{
 
   // Perform backend network save
   const performSave = useCallback(
-    async (targetDoc: DeckDocument) => {
+    async (targetDoc: DeckDocument, force = false) => {
       if (isSavingRef.current) {
         pendingSaveDocRef.current = targetDoc;
         return;
@@ -95,15 +107,18 @@ export const DocumentProvider: React.FC<{
       setSaveStatus("saving");
 
       try {
-        const payload = {
+        const payload: Record<string, any> = {
           title: targetDoc.title,
           description: targetDoc.description || "",
           theme: targetDoc.theme,
           datasets: targetDoc.datasets,
           variables: targetDoc.variables,
           settings: targetDoc.settings,
-          revision: targetDoc.revision,
+          revision: Math.max(targetDoc.revision || 0, lastRevisionRef.current),
         };
+        if (force) {
+          payload.force = true;
+        }
 
         const res = await fetch(`/api/presentations/${targetDoc.id}`, {
           method: "PUT",
@@ -112,11 +127,18 @@ export const DocumentProvider: React.FC<{
         });
 
         if (res.status === 409) {
-          // Conflict
-          const conflictData = await res.json();
-          setSaveStatus("conflict");
-          setConflictServerDoc(conflictData.presentation || null);
-          return;
+          // The server has a newer revision (another tab, an AI job, or a stale revision here).
+          // Keep what is on screen without interrupting: adopt the server's revision and save
+          // again with force. No "Resolve conflicting changes" dialog.
+          const conflictData = await res.json().catch(() => ({}));
+          const serverRev = conflictData?.presentation?.revision;
+          if (typeof serverRev === "number") lastRevisionRef.current = serverRev;
+          if (!force) {
+            isSavingRef.current = false;
+            await performSave({ ...targetDoc, revision: (serverRev || targetDoc.revision) + 1 }, true);
+            return;
+          }
+          throw new Error("The presentation could not be saved.");
         }
 
         if (!res.ok) {
@@ -124,19 +146,60 @@ export const DocumentProvider: React.FC<{
         }
 
         const data = await res.json();
-        const updatedRevision = data.presentation?.revision || targetDoc.revision + 1;
+        const updatedRevision = data.presentation?.revision || Math.max(targetDoc.revision, lastRevisionRef.current) + 1;
+        lastRevisionRef.current = updatedRevision;
 
-        // Also save each slide's spec
+        // Save every slide: update the ones the server has, create new ones (added in the editor,
+        // by Copilot or by a feature), delete removed ones, then save the order. Before this,
+        // new slides were never sent to the server and disappeared on reload.
+        const known = serverSlideIdsRef.current;
+        const base = `/api/presentations/${targetDoc.id}/slides`;
+        const titleOf = (slide: any) => {
+          const t = (slide.blocks || []).find((b: any) => b.role === "title");
+          return String(t?.content || t?.text || "Slide").slice(0, 200);
+        };
+        const create = async (slide: any) => {
+          const res = await fetch(base, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: titleOf(slide), spec: slide }),
+          });
+          if (!res.ok) return;
+          const created = await res.json().catch(() => null);
+          const newId = Number(created?.slide?.id);
+          if (Number.isFinite(newId)) known.set(slide.id, newId);
+        };
         for (const slide of targetDoc.slides) {
-          // If slide is a numeric database ID, update slide spec
-          const slideIdNum = parseInt(slide.id.replace("slide-", ""), 10);
-          if (!isNaN(slideIdNum)) {
-            await fetch(`/api/presentations/${targetDoc.id}/slides/${slideIdNum}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ spec: slide }),
-            }).catch(() => {});
+          const dbId = known.get(slide.id);
+          if (dbId === undefined) {
+            await create(slide).catch(() => {});
+            continue;
           }
+          const res = await fetch(`${base}/${dbId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: titleOf(slide), spec: slide }),
+          }).catch(() => null);
+          if (res && res.status === 404) {
+            // Deleted on the server (e.g. delete then undo): create it again.
+            known.delete(slide.id);
+            await create(slide).catch(() => {});
+          }
+        }
+        const present = new Set(targetDoc.slides.map((s) => s.id));
+        for (const [slideId, dbId] of Array.from(known.entries())) {
+          if (!present.has(slideId)) {
+            await fetch(`${base}/${dbId}`, { method: "DELETE" }).catch(() => {});
+            known.delete(slideId);
+          }
+        }
+        const order = targetDoc.slides.map((s) => known.get(s.id)).filter((n): n is number => Number.isFinite(n as number));
+        if (order.length) {
+          await fetch(`${base}/reorder`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ slide_ids: order }),
+          }).catch(() => {});
         }
 
         // Update stored revision
@@ -258,7 +321,7 @@ export const DocumentProvider: React.FC<{
           revision: (conflictServerDoc?.revision || storeState.doc.revision) + 1,
         };
         setConflictServerDoc(null);
-        await performSave(target);
+        await performSave(target, true);
       }
     },
     [conflictServerDoc, performSave, storeState.doc]

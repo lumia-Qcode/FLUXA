@@ -1,0 +1,413 @@
+{
+  "$defs": {
+    "BrandColors": {
+      "additionalProperties": false,
+      "properties": {
+        "primary": {
+          "items": {
+            "$ref": "#/$defs/Swatch"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "title": "Primary",
+          "type": "array"
+        },
+        "secondary": {
+          "items": {
+            "$ref": "#/$defs/Swatch"
+          },
+          "maxItems": 8,
+          "title": "Secondary",
+          "type": "array"
+        },
+        "accent": {
+          "items": {
+            "$ref": "#/$defs/Swatch"
+          },
+          "maxItems": 8,
+          "title": "Accent",
+          "type": "array"
+        },
+        "neutrals": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 12,
+          "title": "Neutrals",
+          "type": "array"
+        },
+        "chart": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 16,
+          "title": "Chart",
+          "type": "array"
+        },
+        "allowedPairs": {
+          "items": {
+            "$ref": "#/$defs/ColorPair"
+          },
+          "maxItems": 50,
+          "title": "Allowedpairs",
+          "type": "array"
+        },
+        "contrastWarnings": {
+          "items": {
+            "$ref": "#/$defs/ColorPair"
+          },
+          "maxItems": 50,
+          "title": "Contrastwarnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "primary"
+      ],
+      "title": "BrandColors",
+      "type": "object"
+    },
+    "ColorPair": {
+      "additionalProperties": false,
+      "properties": {
+        "fg": {
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "title": "Fg",
+          "type": "string"
+        },
+        "bg": {
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "title": "Bg",
+          "type": "string"
+        },
+        "contrast": {
+          "anyOf": [
+            {
+              "maximum": 21,
+              "minimum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Contrast"
+        }
+      },
+      "required": [
+        "fg",
+        "bg"
+      ],
+      "title": "ColorPair",
+      "type": "object"
+    },
+    "FontRole": {
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9 .\\-_]{0,79}$",
+          "title": "Family",
+          "type": "string"
+        },
+        "weights": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 9,
+          "title": "Weights",
+          "type": "array"
+        },
+        "fontId": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fontid"
+        },
+        "fallback": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Fallback",
+          "type": "array"
+        }
+      },
+      "required": [
+        "family"
+      ],
+      "title": "FontRole",
+      "type": "object"
+    },
+    "Swatch": {
+      "additionalProperties": false,
+      "properties": {
+        "hex": {
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "title": "Hex",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        }
+      },
+      "required": [
+        "hex"
+      ],
+      "title": "Swatch",
+      "type": "object"
+    },
+    "TypeScale": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "anyOf": [
+            {
+              "maximum": 400,
+              "minimum": 8,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "h1": {
+          "anyOf": [
+            {
+              "maximum": 400,
+              "minimum": 8,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "H1"
+        },
+        "body": {
+          "anyOf": [
+            {
+              "maximum": 400,
+              "minimum": 8,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body"
+        },
+        "caption": {
+          "anyOf": [
+            {
+              "maximum": 400,
+              "minimum": 8,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Caption"
+        }
+      },
+      "title": "TypeScale",
+      "type": "object"
+    },
+    "Typography": {
+      "additionalProperties": false,
+      "properties": {
+        "heading": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FontRole"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "body": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FontRole"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "scale": {
+          "$ref": "#/$defs/TypeScale"
+        }
+      },
+      "title": "Typography",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 1,
+      "default": 1,
+      "title": "Schemaversion",
+      "type": "integer"
+    },
+    "colors": {
+      "$ref": "#/$defs/BrandColors"
+    },
+    "typography": {
+      "$ref": "#/$defs/Typography"
+    },
+    "logo": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Logo"
+    },
+    "header": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Header"
+    },
+    "footer": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Footer"
+    },
+    "legal": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Legal"
+    },
+    "layouts": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Layouts"
+    },
+    "charts": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Charts"
+    },
+    "imagery": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Imagery"
+    },
+    "language": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Language"
+    }
+  },
+  "required": [
+    "colors"
+  ],
+  "title": "BrandTokens",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fluxa.local/schemas/brand.schema.json"
+}

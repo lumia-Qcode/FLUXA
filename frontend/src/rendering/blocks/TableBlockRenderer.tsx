@@ -30,16 +30,12 @@ export const TableBlockRenderer: React.FC<Props> = ({
       ? propColumns
       : datasetColumns.length > 0
       ? datasetColumns
-      : ["col1", "col2", "col3"];
+      : [];
 
   // Use computed rows from reactiveScope if available
   const rows = activeDataset
     ? reactiveScope.datasets[activeDataset.id]?.rows || activeDataset.rows
-    : [
-        { col1: "Item A", col2: "Category 1", col3: 150 },
-        { col1: "Item B", col2: "Category 2", col3: 280 },
-        { col1: "Item C", col2: "Category 3", col3: 420 },
-      ];
+    : []; // no dataset, no rows: never sample values
 
   // Track cell value changes to trigger flash animation
   const [flashedCells, setFlashedCells] = useState<Record<string, boolean>>({});
@@ -88,7 +84,8 @@ export const TableBlockRenderer: React.FC<Props> = ({
         style={{
           width: "100%",
           borderCollapse: "collapse",
-          fontSize: "14px",
+          fontSize: "24px",
+          lineHeight: 1.35,
           color: "var(--theme-text)",
         }}
       >
@@ -105,10 +102,9 @@ export const TableBlockRenderer: React.FC<Props> = ({
                 style={{
                   padding: "0.75rem 1rem",
                   fontWeight: 600,
-                  textTransform: "capitalize",
                 }}
               >
-                {col}
+                {activeDataset?.columns?.find((c) => c.key === col)?.label || col}
               </th>
             ))}
           </tr>
@@ -147,6 +143,11 @@ export const TableBlockRenderer: React.FC<Props> = ({
           ))}
         </tbody>
       </table>
+      {((block as any).props?.sourceNote || (activeDataset as any)?.citations?.length) && (
+        <div style={{ fontSize: 15, marginTop: 8, color: "var(--ink-2, #4B5563)" }}>
+          Source: {(block as any).props?.sourceNote || (activeDataset as any).citations.join("")}
+        </div>
+      )}
     </div>
   );
 };

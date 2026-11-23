@@ -1,57 +1,68 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Slide } from "../../../shared/spec";
+import React, { useCallback, useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api";
-import { ShortcutSheetModal } from "../editor/ShortcutSheetModal";
-import { SlideStage } from "../rendering/SlideStage";
-import { getTheme } from "../rendering/themes";
-import { Button, Dialog, Field, IconButton, Kbd, Menu, Select, useToast } from "../ui";
+import { useAuth } from "../auth/AuthContext";
+import { postStream } from "../runtime/streamClient";
+import { PipelineTimeline } from "../components/outline/PipelineTimeline";
+import "../components/outline/outline.css";
+import {
+  ArrowUp,
+  Settings,
+  ChevronDown,
+  Loader2,
+} from "lucide-react";
 
-type SortOption = "updated" | "created" | "title" | "slides";
-type ViewMode = "grid" | "list";
-
-function formatRelativeTime(dateStr?: string): string {
-  if (!dateStr) return "Just now";
-  const date = new Date(dateStr.endsWith("Z") ? dateStr : `${dateStr}Z`);
-  const now = new Date();
-  const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-  if (isNaN(diffSec) || diffSec < 60) return "Just now";
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHour = Math.floor(diffMin / 60);
-  if (diffHour < 24) return `${diffHour}h ago`;
-  const diffDay = Math.floor(diffHour / 24);
-  if (diffDay === 1) return "Yesterday";
-  if (diffDay < 7) return `${diffDay}d ago`;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+function sourceHost(c: { url?: string; title?: string; source?: string }): string {
+  if (c.url) {
+    try {
+      return new URL(c.url).hostname.replace(/^www\./, "");
+    } catch {
+      /* not a URL */
+    }
+  }
+  return c.title || c.source || "Source";
 }
 
 export const WorkspacePage: React.FC = () => {
   const navigate = useNavigate();
-  const { showToast } = useToast();
-  const addToast = (message: string, type: "info" | "ok" | "warn" | "danger" | "success" | "error" = "info") => {
-    const mappedType = type === "success" ? "ok" : type === "error" ? "danger" : type;
-    showToast({ message, type: mappedType as any });
-  };
+  const { account, signOut } = useAuth();
 
   const [presentations, setPresentations] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<SortOption>("updated");
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [_loading, setLoading] = useState(true);
+  const [_error, setError] = useState<string | null>(null);
 
-  // Modals & menus
-  const [shortcutModalOpen, setShortcutModalOpen] = useState(false);
-  const [renameTarget, setRenameTarget] = useState<any | null>(null);
-  const [renameTitle, setRenameTitle] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [menuDeck, setMenuDeck] = useState<any | null>(null);
-  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
+  // Hero prompt state
+  const [promptText, setPromptText] = useState(
+    "A board briefing on how hospitals are adopting AI. Seven slides, plain language, with one chart I can edit."
+  );
+  const [slideCount, setSlideCount] = useState(7);
+  const [tone, setTone] = useState("Clinical");
+  const [language, setLanguage] = useState("English");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showAllDecks, setShowAllDecks] = useState(false);
 
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  // Real-time Pipeline Feedback & Research Tracking
+  const [pipelineOpen, setPipelineOpen] = useState(false);
+  const [pipelinePhase, setPipelinePhase] = useState<"research" | "outline" | "slides" | "completed" | "error">("research");
+  const [researchStatusText, setResearchStatusText] = useState("Querying Google Scholar & empirical research databases...");
+  const [pipelineCitations, setPipelineCitations] = useState<any[]>([]);
+  const [pipelineSummary, setPipelineSummary] = useState<string>("");
+  const [pipelineSlides, setPipelineSlides] = useState<any[]>([]);
+  const [slideProgress, setSlideProgress] = useState<{ current: number; total: number; title?: string }>({
+    current: 0,
+    total: 7,
+  });
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const [pipelineLog, setPipelineLog] = useState<string[]>([]);
+  const [pipelineStartedAt, setPipelineStartedAt] = useState(0);
+  const [pipelineElapsed, setPipelineElapsed] = useState(0);
+  const addLog = (line: string) => setPipelineLog((l) => [...l, line]);
+
+  useEffect(() => {
+    if (!pipelineOpen || pipelinePhase === "completed" || pipelinePhase === "error") return undefined;
+    const t = window.setInterval(() => setPipelineElapsed(Math.round((Date.now() - pipelineStartedAt) / 1000)), 1000);
+    return () => window.clearInterval(t);
+  }, [pipelineOpen, pipelinePhase, pipelineStartedAt]);
 
   const loadPresentations = useCallback(async () => {
     try {
@@ -70,929 +81,965 @@ export const WorkspacePage: React.FC = () => {
     loadPresentations();
   }, [loadPresentations]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-        return;
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") {
-        e.preventDefault();
-        handleCreateBlank();
-        return;
-      }
-      if (e.key === "?" && !["INPUT", "TEXTAREA"].includes((e.target as HTMLElement)?.tagName)) {
-        e.preventDefault();
-        setShortcutModalOpen((o) => !o);
-      }
-    };
+  const handleCreateFromPrompt = async () => {
+    const topic = promptText.trim();
+    if (!topic || isGenerating) return;
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+    setIsGenerating(true);
+    setPipelineOpen(true);
+    setPipelinePhase("research");
+    setResearchStatusText(`Searching Google Scholar, PubMed & empirical databases for verified research on '${topic}'...`);
+    setPipelineCitations([]);
+    setPipelineSummary("");
+    setPipelineSlides([]);
+    setPipelineLog([`Brief sent: ${Number(slideCount) || 7} slides, ${tone}, ${language}`]);
+    setPipelineStartedAt(Date.now());
+    setPipelineElapsed(0);
+    const requestedSlides = Number(slideCount) || 7;
+    setSlideProgress({ current: 0, total: requestedSlides });
 
-  const handleCreateBlank = async () => {
-    if (creating) return;
+    const abortCtrl = new AbortController();
+    abortControllerRef.current = abortCtrl;
+
     try {
-      setCreating(true);
-      const res = await api.createPresentation({
-        title: "Untitled presentation",
-        theme: { themeId: "midnight" },
-      });
-      const pid = res.presentation?.id || res.id;
-      // Add first slide
-      const initialSlide: Slide = {
-        id: "slide-1",
-        order: 0,
-        layout: "title",
-        notes: "",
-        blocks: [
-          {
-            id: "block-1",
-            type: "text",
-            x: 10,
-            y: 35,
-            w: 80,
-            h: 30,
-            doc: {
-              type: "doc",
-              content: [
-                {
-                  type: "paragraph",
-                  content: [{ type: "text", text: "Untitled presentation" }],
-                },
-              ],
-            },
-            style: { fontSize: 48, fontWeight: 700, align: "center" },
-            role: "title",
-          },
-        ],
-      };
-      await api.addSlide(pid, {
-        title: "Untitled presentation",
-        content: "",
-        spec: initialSlide,
-      });
-      navigate(`/presentations/${pid}`);
-    } catch (err: any) {
-      addToast(err.message || "Failed to create presentation", "error");
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const handleCreateFromPrompt = () => {
-    navigate("/create");
-  };
-
-  const handleDuplicate = async (deck: any) => {
-    try {
-      const res = await api.duplicatePresentation(deck.id);
-      addToast(`Duplicated "${deck.title}"`, "success");
-      loadPresentations();
-      if (res.id) {
-        navigate(`/presentations/${res.id}`);
-      }
-    } catch (err: any) {
-      addToast(err.message || "Failed to duplicate presentation", "error");
-    }
-  };
-
-  const handleExportJson = async (deck: any) => {
-    try {
-      const data = await api.getPresentation(deck.id);
-      const jsonStr = JSON.stringify(data.presentation, null, 2);
-      const blob = new Blob([jsonStr], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${deck.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      addToast("Presentation JSON exported", "success");
-    } catch (err: any) {
-      addToast("Failed to export JSON", "error");
-    }
-  };
-
-  const handleDelete = async (deck: any) => {
-    try {
-      await api.deletePresentation(deck.id);
-      setDeleteTarget(null);
-      setPresentations((prev) => prev.filter((p) => p.id !== deck.id));
-      addToast(`Deleted "${deck.title}"`, "info");
-    } catch (err: any) {
-      addToast(err.message || "Failed to delete presentation", "error");
-    }
-  };
-
-  const handleRenameConfirm = async () => {
-    if (!renameTarget || !renameTitle.trim()) return;
-    try {
-      await api.updatePresentation(renameTarget.id, { title: renameTitle.trim() });
-      setPresentations((prev) =>
-        prev.map((p) => (p.id === renameTarget.id ? { ...p, title: renameTitle.trim() } : p))
-      );
-      setRenameTarget(null);
-      addToast("Presentation renamed", "success");
-    } catch (err: any) {
-      addToast(err.message || "Failed to rename", "error");
-    }
-  };
-
-  // Filter & sort
-  const filteredPresentations = useMemo(() => {
-    let result = [...presentations];
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      result = result.filter(
-        (p) =>
-          (p.title && p.title.toLowerCase().includes(q)) ||
-          (p.description && p.description.toLowerCase().includes(q))
-      );
-    }
-    result.sort((a, b) => {
-      if (sortBy === "updated") {
-        return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-      }
-      if (sortBy === "created") {
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      }
-      if (sortBy === "title") {
-        return (a.title || "").localeCompare(b.title || "");
-      }
-      if (sortBy === "slides") {
-        return (b.slide_count || 0) - (a.slide_count || 0);
-      }
-      return 0;
-    });
-    return result;
-  }, [presentations, searchQuery, sortBy]);
-
-  // Convert first_slide to Slide for thumbnail
-  const getThumbnailSlide = (p: any): Slide => {
-    if (p.first_slide?.spec && p.first_slide.spec.blocks) {
-      return p.first_slide.spec;
-    }
-    return {
-      id: `thumb-${p.id}`,
-      order: 0,
-      layout: "title",
-      notes: "",
-      blocks: [
+      let isDone = false;
+      await postStream(
+        "/api/presentations/generate",
         {
-          id: `b-${p.id}`,
-          type: "text",
-          x: 10,
-          y: 35,
-          w: 80,
-          h: 30,
-          doc: {
-            type: "doc",
-            content: [
-              {
-                type: "paragraph",
-                content: [{ type: "text", text: p.first_slide?.title || p.title || "Untitled Presentation" }],
-              },
-            ],
-          },
-          style: { fontSize: 44, fontWeight: 700, align: "center" },
-          role: "title",
+          topic,
+          title: topic.slice(0, 50),
+          slide_count: requestedSlides,
+          audience: tone || "General audience",
+          language: language || "English",
+          theme: "midnight",
+          stream: true,
         },
-      ],
-    };
+        {
+          onResearchStart: (data) => {
+            setPipelinePhase("research");
+            setResearchStatusText(data.status || "Querying Google Scholar & empirical sources...");
+            addLog("Research started");
+          },
+          onResearchComplete: (data) => {
+            setPipelinePhase("outline");
+            addLog(`Research complete: ${Array.isArray(data.citations) ? data.citations.length : 0} sources`);
+            if (Array.isArray(data.citations) && data.citations.length > 0) {
+              setPipelineCitations(data.citations);
+            }
+            if (data.summary) {
+              setPipelineSummary(data.summary);
+            }
+          },
+          onText: (t) => {
+            const m = /\[PROGRESS:\s*(.*?)\]/.exec(t?.delta || "");
+            if (m) addLog(m[1]);
+          },
+          onOutline: (outline) => {
+            setPipelinePhase("slides");
+            addLog(`Outline ready: ${outline.slides?.length || 0} slides`);
+            if (outline.slides) {
+              setPipelineSlides(outline.slides);
+              setSlideProgress((prev) => ({ ...prev, total: outline.slides.length }));
+            }
+            if (outline.research_dossier?.citations) {
+              setPipelineCitations(outline.research_dossier.citations);
+            }
+          },
+          onSlide: (slideData) => {
+            setPipelinePhase("slides");
+            addLog(`Slide ${slideData.index + 1} ready: ${slideData.slide?.title || ""}`);
+            setSlideProgress((prev) => ({
+              ...prev,
+              current: slideData.index + 1,
+              title: slideData.slide?.title,
+            }));
+          },
+          onProgress: (prog) => {
+            setSlideProgress((prev) => ({
+              ...prev,
+              current: prog.current,
+              total: prog.total,
+            }));
+          },
+          onDone: (doneData) => {
+            isDone = true;
+            addLog("Deck saved, opening it");
+            setPipelinePhase("completed");
+            const pid = doneData?.presentation?.id;
+            setTimeout(() => {
+              if (pid) {
+                navigate(`/presentations/${pid}?view=overview`);
+              } else {
+                setPipelineOpen(false);
+              }
+            }, 700);
+          },
+          onError: async (err) => {
+            if (abortCtrl.signal.aborted) return;
+            addLog("Streaming failed, retrying without streaming");
+            console.warn("Stream error, falling back to synchronous generation:", err);
+            if (!isDone) {
+              try {
+                const res = await api.generatePresentation({
+                  topic,
+                  title: topic.slice(0, 50),
+                  slide_count: requestedSlides,
+                  audience: tone || "General audience",
+                  language: language || "English",
+                  theme: "midnight",
+                  stream: false,
+                });
+                if (res?.presentation?.id) {
+                  navigate(`/presentations/${res.presentation.id}?view=overview`);
+                  return;
+                }
+              } catch (e2) {
+                console.error("Fallback error:", e2);
+              }
+              setPipelinePhase("error");
+            }
+          },
+        },
+        abortCtrl.signal
+      );
+    } catch (err: any) {
+      if (abortCtrl.signal.aborted) return;
+      console.warn("Pipeline stream caught error:", err);
+      try {
+        const res = await api.generatePresentation({
+          topic,
+          title: topic.slice(0, 50),
+          slide_count: requestedSlides,
+          audience: tone || "General audience",
+          language: language || "English",
+          stream: false,
+        });
+        if (res?.presentation?.id) {
+          navigate(`/presentations/${res.presentation.id}?view=overview`);
+          return;
+        }
+      } catch {}
+      setPipelinePhase("error");
+    } finally {
+      setIsGenerating(false);
+    }
   };
+
+  const handleCancelPipeline = () => {
+    abortControllerRef.current?.abort();
+    setPipelineOpen(false);
+    setIsGenerating(false);
+  };
+
+  const handleChipClick = (chipPrompt: string) => {
+    setPromptText(chipPrompt);
+  };
+
+  // Find demo hospital deck if present
+  const hospitalDeck = presentations.find((p) =>
+    p.title.toLowerCase().includes("hospital")
+  );
 
   return (
     <div
       style={{
+        minHeight: "100vh",
+        backgroundColor: "#09090B",
+        color: "#F3F3F5",
+        fontFamily: "var(--font-sans, system-ui, -apple-system, sans-serif)",
         display: "flex",
         flexDirection: "column",
-        minHeight: "100vh",
-        backgroundColor: "var(--bg-app, #090A0D)",
-        color: "var(--ink, #FFFFFF)",
-        fontFamily: "var(--font-sans, system-ui, sans-serif)",
       }}
     >
-      {/* Top Workspace Bar */}
+      {/* Top Navigation Bar */}
       <header
         style={{
-          height: 52,
-          padding: "0 24px",
+          height: 60,
+          padding: "0 32px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          borderBottom: "1px solid var(--border-dim, #1E232B)",
-          backgroundColor: "var(--bg-surface, #12151B)",
-          gap: 16,
+          borderBottom: "1px solid #E5E7EB",
+          backgroundColor: "#131316",
         }}
       >
-        {/* Brand & Workspace Switcher */}
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div
-              style={{
-                width: 26,
-                height: 26,
-                borderRadius: 4,
-                backgroundColor: "var(--signal, #3B82F6)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 700,
-                fontSize: 14,
-                color: "#FFF",
-              }}
-            >
-              F
-            </div>
-            <span style={{ fontWeight: 600, fontSize: 16, letterSpacing: -0.3 }}>FLUXA</span>
-          </div>
-
+        {/* Left: Brand Logo */}
+        <div
+          onClick={() => navigate("/")}
+          style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+        >
           <div
             style={{
-              padding: "4px 8px",
-              borderRadius: "var(--radius-sm, 4px)",
-              backgroundColor: "var(--bg-elevated, #181C24)",
-              color: "var(--ink-secondary, #9CA3AF)",
-              fontSize: 12,
-              fontWeight: 500,
+              width: 24,
+              height: 24,
+              borderRadius: 5,
+              backgroundColor: "#131316",
+              color: "#000000",
               display: "flex",
               alignItems: "center",
-              gap: 6,
+              justifyContent: "center",
+              fontWeight: 800,
+              fontSize: 14,
             }}
           >
-            <div
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                backgroundColor: "var(--signal, #3B82F6)",
-              }}
-            />
-            Personal workspace
+            ≡
           </div>
+          <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.02em" }}>
+            FLUXA
+          </span>
         </div>
 
-        {/* Search Bar */}
-        <div style={{ flex: "0 1 480px", position: "relative" }}>
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search presentations…"
-            aria-label="Search presentations"
+        {/* Right: Actions */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            type="button"
+            onClick={() => navigate("/brands")}
             style={{
-              width: "100%",
-              height: 34,
-              padding: "0 60px 0 32px",
-              backgroundColor: "var(--bg-elevated, #181C24)",
-              border: "1px solid var(--border-dim, #1E232B)",
-              borderRadius: "var(--radius-md, 6px)",
-              color: "var(--ink, #FFFFFF)",
+              padding: "6px 14px",
               fontSize: 13,
-              outline: "none",
-              boxSizing: "border-box",
-            }}
-          />
-          <svg
-            style={{
-              position: "absolute",
-              left: 10,
-              top: "50%",
-              transform: "translateY(-50%)",
-              color: "var(--ink-tertiary, #6B7280)",
-            }}
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <div
-            style={{
-              position: "absolute",
-              right: 8,
-              top: "50%",
-              transform: "translateY(-50%)",
+              fontWeight: 500,
+              backgroundColor: "#222226",
+              color: "#D0D0D6",
+              border: "1px solid #E5E7EB",
+              borderRadius: 8,
+              cursor: "pointer",
             }}
           >
-            <Kbd>Ctrl K</Kbd>
-          </div>
-        </div>
-
-        {/* Right Actions */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <IconButton
-            icon={
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-            }
-            label="Keyboard shortcuts (?)"
-            onClick={() => setShortcutModalOpen(true)}
-          />
-
-          {/* New Deck Split Button */}
-          <div style={{ display: "flex", alignItems: "center" }}>
-            <Button
-              variant="primary"
-              size="md"
-              disabled={creating}
-              onClick={handleCreateBlank}
-              style={{
-                borderTopRightRadius: 0,
-                borderBottomRightRadius: 0,
-                borderRight: "1px solid rgba(255, 255, 255, 0.2)",
-              }}
-            >
-              {creating ? "Creating…" : "New presentation"}
-            </Button>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={handleCreateFromPrompt}
-              title="Generate with AI prompt"
-              style={{
-                borderTopLeftRadius: 0,
-                borderBottomLeftRadius: 0,
-                padding: "0 8px",
-              }}
-            >
-              AI ▾
-            </Button>
-          </div>
+            Brands
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAllDecks((s) => !s)}
+            style={{
+              padding: "6px 14px",
+              fontSize: 13,
+              fontWeight: 500,
+              backgroundColor: showAllDecks ? "#2A2A2E" : "#222226",
+              color: "#D0D0D6",
+              border: "1px solid #E5E7EB",
+              borderRadius: 8,
+              cursor: "pointer",
+            }}
+          >
+            Library
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              await signOut();
+              navigate("/login", { replace: true });
+            }}
+            title={account ? `Signed in as ${account.user.email} (${account.org.name})` : undefined}
+            style={{
+              padding: "6px 14px",
+              fontSize: 13,
+              fontWeight: 500,
+              backgroundColor: "#222226",
+              color: "#D0D0D6",
+              border: "1px solid #E5E7EB",
+              borderRadius: 8,
+              cursor: "pointer",
+            }}
+          >
+            Sign out
+          </button>
+          <button
+            type="button"
+            title="Settings"
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 8,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "1px solid #E5E7EB",
+              backgroundColor: "#131316",
+              color: "#B4B4BB",
+              cursor: "pointer",
+            }}
+          >
+            <Settings size={16} />
+          </button>
         </div>
       </header>
 
-      {/* Main Workspace Body */}
-      <main style={{ flex: 1, padding: "28px 32px", maxWidth: 1440, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
-        {/* Controls row */}
+      {/* Main Container */}
+      <main
+        style={{
+          flex: 1,
+          maxWidth: 1040,
+          width: "100%",
+          margin: "0 auto",
+          padding: "54px 24px 80px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
+        {/* Hero Headline */}
+        <h1
+          style={{
+            fontSize: 48,
+            fontWeight: 700,
+            color: "#F3F3F5",
+            letterSpacing: "-0.03em",
+            marginBottom: 32,
+            textAlign: "center",
+          }}
+        >
+          What are you presenting?
+        </h1>
+
+        {/* Big Prompt Card (Matching Page 1 of PDF) */}
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 820,
+            backgroundColor: "#131316",
+            border: "1px solid #E5E7EB",
+            borderRadius: 24,
+            boxShadow: "0 8px 30px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0,0,0,0.02)",
+            padding: "24px 28px 18px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+            marginBottom: 20,
+          }}
+        >
+          {/* Textarea */}
+          <textarea
+            value={promptText}
+            onChange={(e) => setPromptText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                if (promptText.trim() && !isGenerating) {
+                  handleCreateFromPrompt();
+                }
+              }
+            }}
+            placeholder="A board briefing on how hospitals are adopting AI. Seven slides, plain language, with one chart I can edit."
+            rows={3}
+            style={{
+              width: "100%",
+              border: "none",
+              outline: "none",
+              resize: "none",
+              background: "transparent",
+              fontSize: 17,
+              lineHeight: 1.5,
+              color: "#EDEDEF",
+              fontFamily: "inherit",
+              padding: 0,
+            }}
+          />
+
+          {/* Bottom Bar inside Card */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingTop: 8,
+              borderTop: "1px solid #F3F4F6",
+            }}
+          >
+            {/* Left Options Chips */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {/* Slide Count Chip */}
+              <button
+                type="button"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 12px",
+                  borderRadius: 20,
+                  border: "1px solid #E5E7EB",
+                  backgroundColor: "#1A1A1E",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: "#D0D0D6",
+                  cursor: "pointer",
+                }}
+                onClick={() => setSlideCount((c) => (c >= 10 ? 5 : c + 1))}
+              >
+                <span>+</span>
+                <span>{slideCount} slides</span>
+                <ChevronDown size={13} color="#9A9AA3" />
+              </button>
+
+              {/* Tone/Clinical Chip */}
+              <button
+                type="button"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 12px",
+                  borderRadius: 20,
+                  border: "1px solid #E5E7EB",
+                  backgroundColor: "#1A1A1E",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: "#D0D0D6",
+                  cursor: "pointer",
+                }}
+                onClick={() =>
+                  setTone((t) => (t === "Clinical" ? "Executive" : t === "Executive" ? "Technical" : "Clinical"))
+                }
+              >
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    backgroundColor: "#111827",
+                  }}
+                />
+                <span>{tone}</span>
+                <ChevronDown size={13} color="#9A9AA3" />
+              </button>
+
+              {/* Language Chip */}
+              <button
+                type="button"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 12px",
+                  borderRadius: 20,
+                  border: "1px solid #E5E7EB",
+                  backgroundColor: "#1A1A1E",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: "#D0D0D6",
+                  cursor: "pointer",
+                }}
+                onClick={() =>
+                  setLanguage((l) => (l === "English" ? "Urdu" : l === "Urdu" ? "French" : "English"))
+                }
+              >
+                <span>{language}</span>
+                <ChevronDown size={13} color="#9A9AA3" />
+              </button>
+            </div>
+
+            {/* Right: Round Blue Submit Button */}
+            <button
+              type="button"
+              onClick={handleCreateFromPrompt}
+              disabled={isGenerating || !promptText.trim()}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                backgroundColor: "#AFC0FF",
+                color: "#09090B",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "none",
+                cursor: isGenerating ? "wait" : "pointer",
+                opacity: isGenerating ? 0.7 : 1,
+                boxShadow: "none",
+                transition: "transform 100ms ease, background 150ms ease",
+              }}
+              title="Generate presentation"
+            >
+              {isGenerating ? (
+                <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />
+              ) : (
+                <ArrowUp size={18} strokeWidth={2.5} />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Suggestion Chips (Under Prompt Card) */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 20,
-            gap: 16,
+            justifyContent: "center",
+            flexWrap: "wrap",
+            gap: 10,
+            marginBottom: 64,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <h1 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Presentations</h1>
-            <span
+          {[
+            "Pitch deck for a food delivery app",
+            "Thesis defence on graph neural networks",
+            "Quarterly marketing review",
+          ].map((chip) => (
+            <button
+              key={chip}
+              type="button"
+              onClick={() => handleChipClick(chip)}
               style={{
+                padding: "7px 16px",
+                borderRadius: 20,
+                backgroundColor: "#131316",
+                border: "1px solid #E5E7EB",
+                color: "#9A9AA3",
                 fontSize: 13,
-                color: "var(--ink-secondary, #9CA3AF)",
-                backgroundColor: "var(--bg-elevated, #181C24)",
-                padding: "2px 8px",
-                borderRadius: 10,
+                fontWeight: 500,
+                cursor: "pointer",
+                transition: "all 150ms ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "#6A6A73";
+                e.currentTarget.style.color = "#F3F3F5";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "#2A2A2E";
+                e.currentTarget.style.color = "#9A9AA3";
               }}
             >
-              {filteredPresentations.length}
-            </span>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {/* Sort Dropdown */}
-            <div style={{ width: 160 }}>
-              <Select
-                value={sortBy}
-                onChange={(val) => setSortBy(val as SortOption)}
-                options={[
-                  { label: "Last edited", value: "updated" },
-                  { label: "Created date", value: "created" },
-                  { label: "Title (A–Z)", value: "title" },
-                  { label: "Slide count", value: "slides" },
-                ]}
-              />
-            </div>
-
-            {/* View Toggle */}
-            <div
-              style={{
-                display: "flex",
-                backgroundColor: "var(--bg-surface, #12151B)",
-                border: "1px solid var(--border-dim, #1E232B)",
-                borderRadius: "var(--radius-md, 6px)",
-                padding: 2,
-              }}
-            >
-              <IconButton
-                icon={
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="3" y="3" width="7" height="7" />
-                    <rect x="14" y="3" width="7" height="7" />
-                    <rect x="14" y="14" width="7" height="7" />
-                    <rect x="3" y="14" width="7" height="7" />
-                  </svg>
-                }
-                label="Grid view"
-                active={viewMode === "grid"}
-                onClick={() => setViewMode("grid")}
-              />
-              <IconButton
-                icon={
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="8" y1="6" x2="21" y2="6" />
-                    <line x1="8" y1="12" x2="21" y2="12" />
-                    <line x1="8" y1="18" x2="21" y2="18" />
-                    <line x1="3" y1="6" x2="3.01" y2="6" />
-                    <line x1="3" y1="12" x2="3.01" y2="12" />
-                    <line x1="3" y1="18" x2="3.01" y2="18" />
-                  </svg>
-                }
-                label="List view"
-                active={viewMode === "list"}
-                onClick={() => setViewMode("list")}
-              />
-            </div>
-          </div>
+              {chip}
+            </button>
+          ))}
         </div>
 
-        {/* Loading state */}
-        {loading && (
+        {/* Recent Presentations Section */}
+        <div style={{ width: "100%", maxWidth: 1000 }}>
           <div
             style={{
-              padding: 48,
-              textAlign: "center",
-              color: "var(--ink-secondary, #9CA3AF)",
-              fontSize: 14,
-            }}
-          >
-            Loading presentations…
-          </div>
-        )}
-
-        {/* Error state */}
-        {error && (
-          <div
-            style={{
-              padding: 24,
-              backgroundColor: "rgba(239, 68, 68, 0.1)",
-              border: "1px solid var(--danger, #EF4444)",
-              borderRadius: "var(--radius-md, 6px)",
-              color: "var(--ink, #FFF)",
               display: "flex",
+              alignItems: "center",
               justifyContent: "space-between",
-              alignItems: "center",
+              marginBottom: 20,
             }}
           >
-            <span>{error}</span>
-            <Button size="sm" variant="secondary" onClick={loadPresentations}>
-              Retry
-            </Button>
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!loading && !error && filteredPresentations.length === 0 && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "72px 24px",
-              textAlign: "center",
-              backgroundColor: "var(--bg-surface, #12151B)",
-              border: "1px dashed var(--border-dim, #1E232B)",
-              borderRadius: "var(--radius-lg, 8px)",
-              marginTop: 16,
-            }}
-          >
-            <div
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: "#F3F3F5", margin: 0 }}>
+              Recent
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowAllDecks((s) => !s)}
               style={{
-                width: 48,
-                height: 48,
-                borderRadius: "var(--radius-md, 6px)",
-                backgroundColor: "var(--bg-elevated, #181C24)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                marginBottom: 16,
-                color: "var(--signal, #3B82F6)",
+                background: "none",
+                border: "none",
+                color: "#AFC0FF",
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: "pointer",
               }}
             >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                <line x1="8" y1="21" x2="16" y2="21" />
-                <line x1="12" y1="17" x2="12" y2="21" />
-              </svg>
-            </div>
-            <h3 style={{ margin: "0 0 8px 0", fontSize: 16, fontWeight: 600 }}>
-              {searchQuery ? "No matching presentations" : "No presentations yet"}
-            </h3>
-            <p
-              style={{
-                margin: "0 0 20px 0",
-                color: "var(--ink-secondary, #9CA3AF)",
-                fontSize: 13,
-                maxWidth: 380,
-              }}
-            >
-              {searchQuery
-                ? `No presentations found matching "${searchQuery}". Try a different keyword.`
-                : "Create a blank presentation or generate one with AI to get started."}
-            </p>
-            {!searchQuery && (
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <Button variant="primary" onClick={handleCreateBlank}>
-                  Create blank deck <Kbd>Ctrl N</Kbd>
-                </Button>
-                <Button variant="secondary" onClick={handleCreateFromPrompt}>
-                  Generate with AI
-                </Button>
-              </div>
-            )}
+              {showAllDecks ? "Show less" : "Show all"}
+            </button>
           </div>
-        )}
 
-        {/* Grid View */}
-        {!loading && !error && filteredPresentations.length > 0 && viewMode === "grid" && (
+          {/* 4 Cards Grid Matching Page 1 of PDF */}
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
               gap: 20,
             }}
           >
-            {filteredPresentations.map((deck) => {
-              const themeId =
-                typeof deck.theme === "string" ? deck.theme : deck.theme?.themeId || "default";
-              const theme = getTheme(themeId);
-              const thumbSlide = getThumbnailSlide(deck);
-
-              return (
-                <div
-                  key={deck.id}
-                  style={{
-                    backgroundColor: "var(--bg-surface, #12151B)",
-                    border: "1px solid var(--border-dim, #1E232B)",
-                    borderRadius: "var(--radius-lg, 8px)",
-                    overflow: "hidden",
-                    display: "flex",
-                    flexDirection: "column",
-                    transition: "border-color 150ms ease",
-                    position: "relative",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--border-subtle, #2D333F)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "var(--border-dim, #1E232B)";
-                  }}
-                >
-                  {/* Thumbnail area with 16:9 ratio */}
-                  <div
-                    style={{
-                      position: "relative",
-                      width: "100%",
-                      paddingBottom: "56.25%",
-                      backgroundColor: "#000",
-                      overflow: "hidden",
-                    }}
-                  >
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                      }}
-                    >
-                      <SlideStage mode="thumbnail" theme={theme} slide={thumbSlide} />
-                    </div>
-
-                    {/* Play button hover overlay */}
-                    <div
-                      className="deck-hover-overlay"
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        backgroundColor: "rgba(0, 0, 0, 0.45)",
-                        opacity: 0,
-                        transition: "opacity 150ms ease",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 12,
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.opacity = "1";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.opacity = "0";
-                      }}
-                    >
-                      <Link
-                        to={`/presentations/${deck.id}?present=true`}
-                        style={{
-                          width: 44,
-                          height: 44,
-                          borderRadius: "50%",
-                          backgroundColor: "var(--signal, #3B82F6)",
-                          color: "#FFF",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          textDecoration: "none",
-                        }}
-                        title="Present deck"
-                      >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                          <polygon points="5 3 19 12 5 21 5 3" />
-                        </svg>
-                      </Link>
-                    </div>
-                  </div>
-
-                  {/* Card Info */}
-                  <div
-                    style={{
-                      padding: "12px 14px",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 6,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "flex-start",
-                        justifyContent: "space-between",
-                        gap: 8,
-                      }}
-                    >
-                      <Link
-                        to={`/presentations/${deck.id}`}
-                        style={{
-                          color: "var(--ink, #FFFFFF)",
-                          fontSize: 14,
-                          fontWeight: 500,
-                          textDecoration: "none",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          flex: 1,
-                        }}
-                        title={deck.title}
-                      >
-                        {deck.title || "Untitled presentation"}
-                      </Link>
-
-                      {/* Three-dots menu */}
-                      <IconButton
-                        icon={
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                            <circle cx="12" cy="12" r="2" />
-                            <circle cx="12" cy="5" r="2" />
-                            <circle cx="12" cy="19" r="2" />
-                          </svg>
-                        }
-                        label="More options"
-                        onClick={(e) => {
-                          const r = e.currentTarget.getBoundingClientRect();
-                          setMenuDeck(deck);
-                          setMenuPos({ x: r.left, y: r.bottom + 4 });
-                        }}
-                      />
-                    </div>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        fontSize: 12,
-                        color: "var(--ink-secondary, #9CA3AF)",
-                      }}
-                    >
-                      <span>
-                        {deck.slide_count || 1} {deck.slide_count === 1 ? "slide" : "slides"}
-                      </span>
-                      <span>{formatRelativeTime(deck.updated_at || deck.created_at)}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* List View */}
-        {!loading && !error && filteredPresentations.length > 0 && viewMode === "list" && (
-          <div
-            style={{
-              backgroundColor: "var(--bg-surface, #12151B)",
-              border: "1px solid var(--border-dim, #1E232B)",
-              borderRadius: "var(--radius-lg, 8px)",
-              overflow: "hidden",
-            }}
-          >
+            {/* Card 1: How hospitals are adopting AI */}
             <div
+              onClick={() => {
+                const targetId = hospitalDeck?.id || 29;
+                navigate(`/presentations/${targetId}?view=overview`);
+              }}
               style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 120px 140px 60px",
-                padding: "10px 16px",
-                borderBottom: "1px solid var(--border-dim, #1E232B)",
-                fontSize: 12,
-                fontWeight: 600,
-                color: "var(--ink-tertiary, #6B7280)",
+                display: "flex",
+                flexDirection: "column",
+                cursor: "pointer",
+                textDecoration: "none",
               }}
             >
-              <span>Title</span>
-              <span>Slides</span>
-              <span>Last edited</span>
-              <span />
-            </div>
-
-            {filteredPresentations.map((deck) => (
               <div
-                key={deck.id}
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 120px 140px 60px",
-                  padding: "12px 16px",
-                  alignItems: "center",
-                  borderBottom: "1px solid var(--border-dim, #1E232B)",
-                  fontSize: 13,
+                  height: 140,
+                  backgroundColor: "#0F172A",
+                  borderRadius: 16,
+                  padding: "20px 18px",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                  transition: "transform 150ms ease, box-shadow 150ms ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.12)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)";
                 }}
               >
-                <Link
-                  to={`/presentations/${deck.id}`}
-                  style={{
-                    color: "var(--ink, #FFFFFF)",
-                    fontWeight: 500,
-                    textDecoration: "none",
-                  }}
-                >
-                  {deck.title || "Untitled presentation"}
-                </Link>
-                <span style={{ color: "var(--ink-secondary, #9CA3AF)" }}>
-                  {deck.slide_count || 1} {deck.slide_count === 1 ? "slide" : "slides"}
-                </span>
-                <span style={{ color: "var(--ink-secondary, #9CA3AF)", fontSize: 12 }}>
-                  {formatRelativeTime(deck.updated_at || deck.created_at)}
-                </span>
-                <div style={{ textAlign: "right" }}>
-                  <IconButton
-                    icon={
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                        <circle cx="12" cy="12" r="2" />
-                        <circle cx="12" cy="5" r="2" />
-                        <circle cx="12" cy="19" r="2" />
-                      </svg>
-                    }
-                    label="Actions"
-                    onClick={(e) => {
-                      const r = e.currentTarget.getBoundingClientRect();
-                      setMenuDeck(deck);
-                      setMenuPos({ x: r.left, y: r.bottom + 4 });
-                    }}
-                  />
+                <div style={{ fontSize: 17, fontWeight: 700, color: "#FFFFFF", lineHeight: 1.25 }}>
+                  How hospitals are<br />adopting AI
+                </div>
+                <div style={{ fontSize: 11, color: "#94A3B8" }}>
+                  A board briefing, October 2026
                 </div>
               </div>
-            ))}
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#F3F3F5" }}>
+                  How hospitals are adopting AI
+                </div>
+                <div style={{ fontSize: 12, color: "#9A9AA3", marginTop: 2 }}>
+                  Edited 2 hours ago · 7 slides
+                </div>
+              </div>
+            </div>
+
+            {/* Card 2: Thesis defence on graph neural networks */}
+            <div
+              onClick={() => {
+                const gnn = presentations.find((p) => p.title.toLowerCase().includes("protein") || p.title.toLowerCase().includes("neural"));
+                navigate(gnn ? `/presentations/${gnn.id}?view=overview` : `/presentations/14?view=overview`);
+              }}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                cursor: "pointer",
+              }}
+            >
+              <div
+                style={{
+                  height: 140,
+                  backgroundColor: "#1B1B1F",
+                  borderRadius: 16,
+                  padding: "20px 18px",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  border: "1px solid #E2E8F0",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                  transition: "transform 150ms ease, box-shadow 150ms ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.08)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.04)";
+                }}
+              >
+                <div style={{ fontSize: 17, fontWeight: 700, color: "#EDEDEF", lineHeight: 1.25, fontFamily: "serif" }}>
+                  Graph neural networks<br />for protein folding
+                </div>
+                <div style={{ fontSize: 11, color: "#9A9AA3" }}>
+                  Thesis defence
+                </div>
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#F3F3F5" }}>
+                  Thesis defence
+                </div>
+                <div style={{ fontSize: 12, color: "#9A9AA3", marginTop: 2 }}>
+                  Edited yesterday · 24 slides
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: Karahi Express pitch */}
+            <div
+              onClick={() => {
+                const karahi = presentations.find((p) => p.title.toLowerCase().includes("karahi"));
+                navigate(karahi ? `/presentations/${karahi.id}?view=overview` : `/presentations/14?view=overview`);
+              }}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                cursor: "pointer",
+              }}
+            >
+              <div
+                style={{
+                  height: 140,
+                  backgroundColor: "#FBBF24",
+                  borderRadius: 16,
+                  padding: "20px 18px",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                  transition: "transform 150ms ease, box-shadow 150ms ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.12)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)";
+                }}
+              >
+                <div style={{ fontSize: 20, fontWeight: 800, color: "#EDEDEF", lineHeight: 1.15 }}>
+                  Karahi Express
+                </div>
+                <div style={{ fontSize: 11, color: "#78350F", fontWeight: 500 }}>
+                  Seed round pitch
+                </div>
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#F3F3F5" }}>
+                  Karahi Express pitch
+                </div>
+                <div style={{ fontSize: 12, color: "#9A9AA3", marginTop: 2 }}>
+                  Edited 3 days ago · 10 slides
+                </div>
+              </div>
+            </div>
+
+            {/* Card 4: Q3 marketing review */}
+            <div
+              onClick={() => {
+                const q3 = presentations.find((p) => p.title.toLowerCase().includes("marketing") || p.title.toLowerCase().includes("q3"));
+                navigate(q3 ? `/presentations/${q3.id}?view=overview` : `/presentations/14?view=overview`);
+              }}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                cursor: "pointer",
+              }}
+            >
+              <div
+                style={{
+                  height: 140,
+                  backgroundColor: "#111827",
+                  borderRadius: 16,
+                  padding: "20px 18px",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  position: "relative",
+                  overflow: "hidden",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                  transition: "transform 150ms ease, box-shadow 150ms ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.12)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)";
+                }}
+              >
+                <div style={{ fontSize: 17, fontWeight: 700, color: "#FFFFFF" }}>
+                  Q3 marketing review
+                </div>
+                {/* Green wavy line chart decoration */}
+                <svg
+                  style={{ width: "100%", height: 40 }}
+                  viewBox="0 0 100 40"
+                  fill="none"
+                >
+                  <path
+                    d="M0 35 Q 25 30, 45 22 T 80 12 T 100 8"
+                    stroke="#10B981"
+                    strokeWidth="3"
+                    fill="none"
+                  />
+                </svg>
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#F3F3F5" }}>
+                  Q3 marketing review
+                </div>
+                <div style={{ fontSize: 12, color: "#9A9AA3", marginTop: 2 }}>
+                  Edited last week · 12 slides
+                </div>
+              </div>
+            </div>
           </div>
-        )}
+
+          {/* Show All Expanded Decks (if clicked) */}
+          {showAllDecks && (
+            <div style={{ marginTop: 40 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, color: "#D0D0D6" }}>
+                All Presentations ({presentations.length})
+              </h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
+                {presentations.map((deck) => (
+                  <div
+                    key={deck.id}
+                    onClick={() => navigate(`/presentations/${deck.id}?view=overview`)}
+                    style={{
+                      padding: 14,
+                      backgroundColor: "#131316",
+                      border: "1px solid #E5E7EB",
+                      borderRadius: 12,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#F3F3F5" }}>{deck.title}</div>
+                    <div style={{ fontSize: 12, color: "#9A9AA3", marginTop: 4 }}>
+                      {deck.slide_count || 1} slides
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </main>
 
-      {/* Context Menu for Deck Card */}
-      {menuDeck && menuPos && (
-        <Menu
-          open={Boolean(menuPos)}
-          x={menuPos.x}
-          y={menuPos.y}
-          onClose={() => {
-            setMenuDeck(null);
-            setMenuPos(null);
+      {/* AI generation pipeline: vertical timeline with live log */}
+      {pipelineOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Building your presentation"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            backgroundColor: "rgba(0, 0, 0, 0.72)",
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "center",
+            padding: "6vh 16px 16px",
+            overflowY: "auto",
           }}
-          items={[
-            {
-              id: "present",
-              label: "Present",
-              icon: (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                  <polygon points="5 3 19 12 5 21 5 3" />
-                </svg>
-              ),
-              onClick: () => navigate(`/presentations/${menuDeck.id}?present=true`),
-            },
-            {
-              id: "rename",
-              label: "Rename",
-              icon: (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-              ),
-              onClick: () => {
-                setRenameTarget(menuDeck);
-                setRenameTitle(menuDeck.title || "");
-              },
-            },
-            {
-              id: "duplicate",
-              label: "Duplicate",
-              icon: (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-              ),
-              onClick: () => handleDuplicate(menuDeck),
-            },
-            {
-              id: "export",
-              label: "Export JSON",
-              icon: (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-              ),
-              onClick: () => handleExportJson(menuDeck),
-            },
-            {
-              id: "delete",
-              label: "Delete",
-              danger: true,
-              icon: (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-              ),
-              onClick: () => setDeleteTarget(menuDeck),
-            },
-          ]}
-        />
-      )}
-
-      {/* Rename Dialog */}
-      <Dialog
-        open={Boolean(renameTarget)}
-        title="Rename presentation"
-        onClose={() => setRenameTarget(null)}
-        confirmLabel="Save"
-        onConfirm={handleRenameConfirm}
-      >
-        <Field label="Presentation title">
-          <input
-            type="text"
-            value={renameTitle}
-            onChange={(e) => setRenameTitle(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleRenameConfirm();
-            }}
-            autoFocus
+        >
+          <div
+            className="fx-outline fx-embed"
             style={{
               width: "100%",
-              height: 36,
-              padding: "0 10px",
-              backgroundColor: "var(--bg-elevated, #181C24)",
-              border: "1px solid var(--border-dim, #1E232B)",
-              borderRadius: "var(--radius-md, 6px)",
-              color: "var(--ink, #FFFFFF)",
-              fontSize: 14,
-              boxSizing: "border-box",
+              maxWidth: 720,
+              backgroundColor: "#131316",
+              border: "1px solid rgba(255, 255, 255, 0.12)",
+              borderRadius: 20,
+              padding: "24px 24px 20px",
             }}
-          />
-        </Field>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={Boolean(deleteTarget)}
-        title="Delete presentation?"
-        onClose={() => setDeleteTarget(null)}
-        confirmLabel="Delete permanently"
-        confirmVariant="danger"
-        onConfirm={() => handleDelete(deleteTarget)}
-      >
-        <p style={{ margin: 0, fontSize: 13, color: "var(--ink-secondary, #9CA3AF)" }}>
-          Are you sure you want to delete &ldquo;{deleteTarget?.title}&rdquo;? This action cannot be
-          undone.
-        </p>
-      </Dialog>
-
-      {/* Shortcut Sheet Modal */}
-      <ShortcutSheetModal open={shortcutModalOpen} onClose={() => setShortcutModalOpen(false)} />
+          >
+            <PipelineTimeline
+              heading={
+                pipelinePhase === "completed"
+                  ? "Your presentation is ready"
+                  : pipelinePhase === "error"
+                    ? "Generation stopped"
+                    : "Building your presentation"
+              }
+              subheading={promptText.length > 140 ? `${promptText.slice(0, 140)}…` : promptText}
+              elapsedSeconds={pipelineElapsed}
+              log={pipelineLog}
+              onCancel={
+                pipelinePhase === "completed"
+                  ? undefined
+                  : pipelinePhase === "error"
+                    ? () => setPipelineOpen(false)
+                    : handleCancelPipeline
+              }
+              cancelLabel={pipelinePhase === "error" ? "Close" : "Cancel"}
+              steps={[
+                {
+                  id: "research",
+                  title: "Research",
+                  status:
+                    pipelinePhase === "research"
+                      ? "active"
+                      : pipelinePhase === "error" && pipelineCitations.length === 0
+                        ? "error"
+                        : "done",
+                  note:
+                    pipelinePhase === "research"
+                      ? researchStatusText
+                      : pipelineCitations.length > 0
+                        ? `${pipelineCitations.length} sources found`
+                        : "Done",
+                  detail:
+                    pipelineCitations.length > 0 ? (
+                      <div className="fx-chips-row">
+                        {pipelineCitations.slice(0, 8).map((c: any, i: number) => (
+                          <a
+                            key={i}
+                            className="fx-ref"
+                            href={c.url || undefined}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={c.title || c.url}
+                          >
+                            <span>{i + 1}</span>
+                            <span>{sourceHost(c)}</span>
+                          </a>
+                        ))}
+                      </div>
+                    ) : undefined,
+                },
+                {
+                  id: "outline",
+                  title: "Outline",
+                  status:
+                    pipelinePhase === "research"
+                      ? "pending"
+                      : pipelinePhase === "outline"
+                        ? "active"
+                        : pipelinePhase === "error" && pipelineSlides.length === 0
+                          ? "error"
+                          : "done",
+                  note:
+                    pipelineSlides.length > 0
+                      ? `${pipelineSlides.length} slides planned`
+                      : pipelineSummary || "Structuring the story",
+                  detail:
+                    pipelineSlides.length > 0 ? (
+                      <ol className="fx-titles">
+                        {pipelineSlides.map((sl: any, i: number) => (
+                          <li key={i}>{sl.title}</li>
+                        ))}
+                      </ol>
+                    ) : undefined,
+                },
+                {
+                  id: "slides",
+                  title: "Slides",
+                  status:
+                    pipelinePhase === "slides"
+                      ? "active"
+                      : pipelinePhase === "completed"
+                        ? "done"
+                        : pipelinePhase === "error" && pipelineSlides.length > 0
+                          ? "error"
+                          : "pending",
+                  note:
+                    pipelinePhase === "slides" || pipelinePhase === "completed"
+                      ? `${slideProgress.current} of ${slideProgress.total} ready${slideProgress.title ? `: ${slideProgress.title}` : ""}`
+                      : undefined,
+                  detail:
+                    pipelinePhase === "slides" || pipelinePhase === "completed" ? (
+                      <div
+                        role="progressbar"
+                        aria-valuemin={0}
+                        aria-valuemax={slideProgress.total}
+                        aria-valuenow={slideProgress.current}
+                        style={{ height: 6, borderRadius: 999, background: "rgba(255,255,255,0.1)", overflow: "hidden" }}
+                      >
+                        <span
+                          style={{
+                            display: "block",
+                            height: "100%",
+                            width: `${slideProgress.total ? Math.min(100, Math.round((slideProgress.current / slideProgress.total) * 100)) : 0}%`,
+                            background: "linear-gradient(90deg, #5eead4, #38bdf8, #3b82f6)",
+                            transition: "width 300ms ease",
+                          }}
+                        />
+                      </div>
+                    ) : undefined,
+                },
+                { id: "open", title: "Open the deck", status: pipelinePhase === "completed" ? "active" : "pending" },
+              ]}
+            />
+            {pipelinePhase === "error" && (
+              <p role="alert" style={{ margin: "14px 0 0", color: "#fca5a5", fontSize: 13 }}>
+                The AI service hit a problem. Try again, or change the prompt.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

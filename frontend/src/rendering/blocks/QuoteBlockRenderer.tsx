@@ -8,7 +8,12 @@ interface Props {
 }
 
 export const QuoteBlockRenderer: React.FC<Props> = ({ block }) => {
-  const { text, attribution } = block;
+  const text = block.text || (block as any).props?.text || (block as any).content || "";
+  const attribution =
+    block.attribution ||
+    (block as any).props?.attribution ||
+    (block as any).props?.author ||
+    (block as any).author;
 
   return (
     <div

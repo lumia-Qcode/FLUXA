@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Panel } from "../../ui/Panel";
 import { Tabs } from "../../ui/Tabs";
 import { useDocument } from "../store/DocumentContext";
@@ -7,40 +7,79 @@ import { SlideInspector } from "./SlideInspector";
 import { DataInspector } from "./DataInspector";
 import { AnimateInspector } from "./AnimateInspector";
 import { AskInspector } from "./AskInspector";
+import { RehearseInspector } from "./RehearseInspector";
 
 export const InspectorPanel: React.FC = () => {
   const { selectedSlide, selectedBlockIds } = useDocument();
-  const [activeTab, setActiveTab] = useState("design");
+  const isSlide3 = selectedSlide?.order === 2 || selectedSlide?.id === "hosp-s3";
+  const [activeTab, setActiveTab] = useState(() => (isSlide3 ? "data" : "design"));
   const [isWide, setIsWide] = useState(false);
+  const previousTabRef = useRef<string>("design");
+
+  React.useEffect(() => {
+    if (isSlide3) {
+      setActiveTab("data");
+    }
+  }, [selectedSlide?.id]);
+
+  React.useEffect(() => {
+    if (activeTab !== "ask") {
+      previousTabRef.current = activeTab;
+    }
+  }, [activeTab]);
+
+  React.useEffect(() => {
+    const handleOpen = () => setActiveTab("ask");
+    window.addEventListener("fluxa:open-copilot", handleOpen);
+    return () => window.removeEventListener("fluxa:open-copilot", handleOpen);
+  }, []);
 
   const activeBlock = selectedSlide?.blocks.find((b) => selectedBlockIds.includes(b.id)) || null;
+
+  const handleBackFromCopilot = () => {
+    setActiveTab(previousTabRef.current || "design");
+  };
 
   return (
     <Panel
       className="ui-inspector-panel"
       borderLeft
       style={{
-        width: isWide && activeTab === "ask" ? "420px" : "300px",
+        width: activeTab === "ask" ? (isWide ? "420px" : "380px") : activeTab === "rehearse" ? "340px" : "300px",
         height: "100%",
         display: "flex",
         flexDirection: "column",
         userSelect: "none",
         transition: "width 200ms ease",
+        backgroundColor: activeTab === "ask" ? "#FFFFFF" : undefined,
+        padding: 0,
+        overflow: "hidden",
       }}
     >
-      {/* 4 Tabs */}
-      <Tabs
-        activeId={activeTab}
-        onChange={setActiveTab}
-        items={[
-          { id: "design", label: "Design" },
-          { id: "animate", label: "Animate" },
-          { id: "data", label: "Data" },
-          { id: "ask", label: "Ask" },
-        ]}
-      />
+      {/* 4 Tabs - Hidden when Copilot is active so Copilot ChatHeader sits at the top */}
+      {activeTab !== "ask" && (
+        <Tabs
+          activeId={activeTab}
+          onChange={setActiveTab}
+          items={[
+            { id: "design", label: "Design" },
+            { id: "animate", label: "Animate" },
+            { id: "data", label: "Data" },
+            { id: "rehearse", label: "Rehearse" },
+            { id: "ask", label: "Copilot" },
+          ]}
+        />
+      )}
 
-      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+      <div
+        style={{
+          flex: 1,
+          overflowY: activeTab === "ask" ? "hidden" : "auto",
+          display: "flex",
+          flexDirection: "column",
+          height: activeTab === "ask" ? "100%" : undefined,
+        }}
+      >
         {activeTab === "design" && (
           activeBlock ? <BlockInspector block={activeBlock} /> : <SlideInspector />
         )}
@@ -49,10 +88,13 @@ export const InspectorPanel: React.FC = () => {
 
         {activeTab === "data" && <DataInspector />}
 
+        {activeTab === "rehearse" && <RehearseInspector />}
+
         {activeTab === "ask" && (
           <AskInspector
             isWide={isWide}
             onToggleWide={() => setIsWide(!isWide)}
+            onBack={handleBackFromCopilot}
           />
         )}
       </div>

@@ -14,6 +14,11 @@ import { ControlBlockRenderer } from "./ControlBlockRenderer";
 import { EmbedBlockRenderer } from "./EmbedBlockRenderer";
 import { HtmlBlockRenderer } from "./HtmlBlockRenderer";
 import { TabsBlockRenderer } from "./TabsBlockRenderer";
+import { SwotBlockRenderer } from "./SwotBlockRenderer";
+import { MarketSizeBlockRenderer } from "./MarketSizeBlockRenderer";
+import { FunnelBlockRenderer } from "./FunnelBlockRenderer";
+import { CitationBlockRenderer } from "./CitationBlockRenderer";
+import { Interactive3DViewer } from "./Lazy3DViewer";
 import { UnknownBlockRenderer } from "./UnknownBlockRenderer";
 
 export interface BlockRendererProps {
@@ -41,7 +46,16 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
     case "shape":
       return <ShapeBlockRenderer block={block} />;
     case "image":
-      return <ImageBlockRenderer block={block} />;
+      return <ImageBlockRenderer block={block} interactive={interactive} />;
+    case "model3d" as any:
+    case "3d" as any:
+      return (
+        <Interactive3DViewer
+          modelType={(block as any).modelType || (block as any).model3d || "globe"}
+          modelUrl={(block as any).modelUrl || (block as any).props?.modelUrl}
+          accentColor={(block as any).accentColor || (themeChartColors && themeChartColors[0]) || "#38BDF8"}
+        />
+      );
     case "icon":
       return <IconBlockRenderer block={block} />;
     case "chart":
@@ -52,6 +66,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
           datasets={datasets}
           variables={variables}
           themeChartColors={themeChartColors}
+          interactive={interactive !== false}
         />
       );
     case "kpi":
@@ -108,6 +123,15 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
       );
     case "embed":
       return <EmbedBlockRenderer block={block} />;
+    case "swot" as any:
+      return <SwotBlockRenderer block={block} />;
+    case "market-size" as any:
+    case "tam-sam-som" as any:
+      return <MarketSizeBlockRenderer block={block} />;
+    case "funnel" as any:
+      return <FunnelBlockRenderer block={block} />;
+    case "citation" as any:
+      return <CitationBlockRenderer block={block} interactive={interactive !== false} />;
     default:
       return <UnknownBlockRenderer type={(block as any).type || "unknown"} id={(block as any).id || "unknown"} />;
   }

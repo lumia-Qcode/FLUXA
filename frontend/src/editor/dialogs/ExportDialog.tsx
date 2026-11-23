@@ -14,10 +14,8 @@ import {
   X,
 } from "lucide-react";
 import { DeckDocument } from "../store/types";
-import { exportToPptx } from "../../export/pptxExporter";
-import { buildStandaloneHtml } from "../../export/htmlExporter";
 import { buildMarkdownOutline } from "../../export/markdownExporter";
-import { exportSlidesToZip } from "../../export/imageExporter";
+// PptxGenJS, JSZip and html-to-image load only when that export is clicked (D3).
 import { Button } from "../../ui/Button";
 import { useToast } from "../../ui/Toast";
 
@@ -68,6 +66,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ open, doc, onClose }
     setBusyFormat("pptx");
     setProgressMsg("Compiling slides & native charts…");
     try {
+      const { exportToPptx } = await import("../../export/pptxExporter");
       const blob = await exportToPptx(doc, {
         shareUrl: isShared ? shareUrl : undefined,
         onProgress: (p) => setProgressMsg(p.stage),
@@ -83,10 +82,13 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ open, doc, onClose }
   }
 
   // 2. Export Standalone HTML
-  function handleExportHtml() {
+  async function handleExportHtml() {
     setBusyFormat("html");
     try {
-      const htmlContent = buildStandaloneHtml(doc);
+      const { buildStandaloneHtml, deckFontFamilies } = await import("../../export/htmlExporter");
+      const { embedFontCss } = await import("../../export/embedFonts");
+      const fontCss = await embedFontCss(deckFontFamilies(doc)).catch(() => "");
+      const htmlContent = buildStandaloneHtml(doc, fontCss);
       const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
       downloadBlob(blob, `${baseTitle}.html`);
       showToast({ message: "Standalone interactive HTML presentation exported." });
@@ -102,6 +104,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ open, doc, onClose }
     setBusyFormat("png");
     setProgressMsg("Rendering high-resolution slides…");
     try {
+      const { exportSlidesToZip } = await import("../../export/imageExporter");
       const blob = await exportSlidesToZip(doc, {
         onProgress: (p) => setProgressMsg(p.stage),
       });
@@ -480,7 +483,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ open, doc, onClose }
 
                 <Button
                   variant="secondary"
-                  onClick={() => window.open(`/print/${doc.id}`, "_blank")}
+                  onClick={() => window.open(`/print/${doc.id}?autoprint=1`, "_blank")}
                 >
                   Open Print View
                 </Button>

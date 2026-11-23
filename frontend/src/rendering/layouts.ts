@@ -20,12 +20,13 @@ export interface LayoutDefinition {
 export const LAYOUTS: LayoutDefinition[] = [
   {
     id: "title",
-    name: "Title Slide",
-    description: "Centered large headline with subtitle and optional presenter tag",
+    name: "Hero Title & Image",
+    description: "Executive hero split with headline, narrative subtitle, and high-res visual",
     slots: [
-      { role: "title", x: 160, y: 320, w: 1600, h: 220, align: "center" },
-      { role: "subtitle", x: 260, y: 560, w: 1400, h: 140, align: "center" },
-      { role: "footer", x: 400, y: 840, w: 1120, h: 80, align: "center" },
+      { role: "title", x: 100, y: 180, w: 900, h: 320, align: "left" },
+      { role: "subtitle", x: 100, y: 520, w: 900, h: 220, align: "left" },
+      { role: "media", x: 1040, y: 120, w: 780, h: 820, align: "center" },
+      { role: "footer", x: 100, y: 780, w: 900, h: 80, align: "left" },
     ],
   },
   {
@@ -112,6 +113,33 @@ export const LAYOUTS: LayoutDefinition[] = [
     slots: [
       { role: "title", x: 100, y: 80, w: 1720, h: 120, align: "left" },
       { role: "body", x: 100, y: 240, w: 1720, h: 720, align: "left" },
+    ],
+  },
+  {
+    id: "swot",
+    name: "SWOT Analysis",
+    description: "2x2 strategic quadrant for Strengths, Weaknesses, Opportunities, and Threats",
+    slots: [
+      { role: "title", x: 100, y: 70, w: 1720, h: 100, align: "left" },
+      { role: "body", x: 100, y: 180, w: 1720, h: 760, align: "left" },
+    ],
+  },
+  {
+    id: "market-size",
+    name: "Market Sizing (TAM/SAM/SOM)",
+    description: "Three-tiered addressable market scope with metrics and share",
+    slots: [
+      { role: "title", x: 100, y: 70, w: 1720, h: 100, align: "left" },
+      { role: "body", x: 100, y: 190, w: 1720, h: 750, align: "left" },
+    ],
+  },
+  {
+    id: "funnel",
+    name: "Conversion Funnel",
+    description: "Multi-stage pipeline or clinical drop-off funnel with conversion percentages",
+    slots: [
+      { role: "title", x: 100, y: 70, w: 1720, h: 100, align: "left" },
+      { role: "body", x: 100, y: 190, w: 1720, h: 750, align: "left" },
     ],
   },
   {

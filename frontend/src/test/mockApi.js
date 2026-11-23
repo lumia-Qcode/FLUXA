@@ -1,8 +1,19 @@
 import { vi } from "vitest";
 
+// A signed-in account, so pages behind <RequireAuth> render. Override the
+// "GET /api/auth/me" handler (e.g. { status: 401, body: {} }) to test signed-out views.
+export const SIGNED_IN = {
+  body: {
+    user: { id: 1, email: "tester@example.com", name: "Tester" },
+    org: { id: 1, name: "Test org" },
+    role: "admin",
+  },
+};
+
 // handlers: { "METHOD /api/path": { status?, body } | (call) => { status?, body } }
 export function mockApi(handlers) {
   const calls = [];
+  handlers = { "GET /api/auth/me": SIGNED_IN, ...handlers };
 
   vi.stubGlobal(
     "fetch",

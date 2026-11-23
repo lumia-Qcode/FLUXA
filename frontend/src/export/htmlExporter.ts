@@ -1,5 +1,6 @@
 import { DeckDocument } from "../editor/store/types";
-import { getTheme, Theme } from "../rendering/themes";
+import { fontStack } from "../rendering/typography";
+import { resolveDeckTheme, Theme } from "../rendering/themes";
 
 /**
  * Builds a 100% self-contained standalone HTML presentation file.
@@ -7,9 +8,18 @@ import { getTheme, Theme } from "../rendering/themes";
  * live Chart & KPI rendering, interactive slider controls, and fullscreen navigation.
  * Requires ZERO external network calls and works directly from file://.
  */
-export function buildStandaloneHtml(doc: DeckDocument): string {
+/** The heading and body font families an exported deck uses. */
+export function deckFontFamilies(doc: DeckDocument): string[] {
+  const theme = resolveDeckTheme(doc.theme?.themeId || "clean-light", doc.brand, (doc.theme as any)?.fontPairing);
+  return Array.from(new Set([theme.fonts.heading, theme.fonts.body]));
+}
+
+/** `fontCss` is optional embedded @font-face CSS (see embedFonts.ts) so the file works offline. */
+export function buildStandaloneHtml(doc: DeckDocument, fontCss = ""): string {
   const themeId = doc.theme?.themeId || "clean-light";
-  const theme: Theme = getTheme(themeId);
+  const theme: Theme = resolveDeckTheme(themeId, doc.brand, (doc.theme as any)?.fontPairing);
+  const headingStack = fontStack(theme.fonts.heading).replace(/"/g, "'");
+  const bodyStack = fontStack(theme.fonts.body).replace(/"/g, "'");
   const deckJson = JSON.stringify(doc).replace(/</g, "\\u003c");
 
   return `<!DOCTYPE html>
@@ -19,6 +29,7 @@ export function buildStandaloneHtml(doc: DeckDocument): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${escapeHtml(doc.title || "FLUXA Presentation")}</title>
   <style>
+    ${fontCss}
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
       width: 100%;
@@ -43,6 +54,7 @@ export function buildStandaloneHtml(doc: DeckDocument): string {
       height: 1080px;
       transform-origin: center center;
       background: ${theme.colors.bg};
+      font-family: ${bodyStack};
       overflow: hidden;
       box-shadow: 0 20px 50px rgba(0,0,0,0.5);
     }
@@ -200,6 +212,8 @@ export function buildStandaloneHtml(doc: DeckDocument): string {
             el.style.textAlign = align;
             el.style.fontWeight = weight;
             el.style.lineHeight = "1.35";
+            // Titles and big statements use the heading font; everything else the body font.
+            if (parseFloat(fontSize) >= 36) el.style.fontFamily = "${headingStack}";
 
             // Extract paragraphs or bullet list
             var html = "";

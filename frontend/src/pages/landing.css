@@ -1,0 +1,26 @@
+/* --u is 1vh, but never smaller than 1/720 of a 720px-tall screen: the hero keeps its
+   composition on short windows and the page scrolls instead of squeezing or clipping. */
+html:has(.lp){scroll-behavior:smooth}
+.lp{--u:max(1vh,7.2px);min-height:100vh;background:#000;font-family:'IBM Plex Sans',system-ui,sans-serif}
+.lp-frame{position:relative;min-height:max(100vh,720px);background:#000;color:#fff;overflow-x:clip}
+.lp-top{position:fixed;inset:22px 28px auto;display:flex;align-items:center;justify-content:space-between;z-index:5}
+.lp-logo{font-weight:700;font-size:18px;letter-spacing:.02em;background:none;border:0;color:#fff;cursor:pointer}
+.lp-nav{display:flex;gap:4px;padding:5px;background:#1b1b1e;border-radius:999px}
+.lp-nav button{background:none;border:0;color:#b9b9c0;font:500 13px inherit;font-family:inherit;padding:7px 16px;border-radius:999px;cursor:pointer}
+.lp-nav button:hover{color:#fff}
+.lp-nav button.on{background:#3a3a40;color:#fff}
+.lp-start{background:#aebfff;color:#0a0a0c;border:0;border-radius:999px;padding:9px 20px;font:600 13px inherit;font-family:inherit;cursor:pointer}
+.lp-start:hover{background:#c6d2ff}
+.lp-word{position:absolute;top:calc(12 * var(--u));left:50%;transform:translateX(-50%);width:min(92vw,1400px);z-index:1}
+.lp-robot{position:absolute;bottom:0;left:50%;height:calc(88 * var(--u));transform:translateX(-50%);z-index:2;pointer-events:none}
+.lp-robot img{height:100%;width:auto;display:block;animation:lpfloat 6s ease-in-out infinite}
+@keyframes lpfloat{50%{transform:translateY(-10px)}}
+.lp-copy{position:absolute;left:36px;top:calc(38 * var(--u));width:230px;font-size:11px;line-height:1.55;color:#c9c9d0;z-index:3}
+.lp-card{position:absolute;left:36px;bottom:36px;width:290px;padding:18px 20px;background:#101013;border:1px solid #26262b;border-radius:18px;z-index:3}
+.lp-card h3{margin:0 0 8px;font-size:20px;line-height:1.2;font-weight:600}
+.lp-card p{margin:0;font-size:11px;line-height:1.5;color:#a4a4ac}
+.lp-ring{position:absolute;right:40px;bottom:40px;width:160px;height:160px;border-radius:50%;border:1px solid #4a4a52;background:transparent;color:#fff;font:600 13px inherit;font-family:inherit;cursor:pointer;z-index:4;display:grid;place-items:center}
+.lp-ring:hover{border-color:#aebfff}
+.lp-ring i{position:absolute;top:6px;right:6px;width:34px;height:34px;border-radius:50%;background:#fff;color:#000;display:grid;place-items:center}
+@media(max-width:900px){.lp-nav{display:none}.lp-copy{display:none}.lp-robot{height:calc(70 * var(--u));transform:translateX(-50%)}.lp-card{left:16px;right:16px;width:auto;bottom:16px}.lp-ring{right:16px;bottom:150px;width:110px;height:110px}.lp-word{top:calc(16 * var(--u))}}
+@media(prefers-reduced-motion:reduce){html:has(.lp){scroll-behavior:auto}.lp-robot img{animation:none}}

@@ -91,13 +91,10 @@ def upload_asset(presentation_id):
 
     asset_id = f"asset_{uuid.uuid4().hex[:12]}"
     file_ext = ALLOWED_MIME_TYPES[mime]
-    upload_dir = os.path.join(
-        os.path.dirname(current_app.config["DATABASE_PATH"]),
-        "uploads",
-        str(presentation_id),
-    )
+    db_dir = os.path.dirname(os.path.abspath(current_app.config["DATABASE_PATH"]))
+    upload_dir = os.path.abspath(os.path.join(db_dir, "uploads", str(presentation_id)))
     os.makedirs(upload_dir, exist_ok=True)
-    file_path = os.path.join(upload_dir, f"{asset_id}{file_ext}")
+    file_path = os.path.abspath(os.path.join(upload_dir, f"{asset_id}{file_ext}"))
 
     with open(file_path, "wb") as f:
         f.write(data)
@@ -139,9 +136,26 @@ def get_asset(asset_id):
     if row is None:
         return {"error": "Asset not found."}, 404
 
-    file_path = row["path"]
+    raw_path = row["path"]
+    file_path = os.path.abspath(raw_path)
     if not os.path.exists(file_path):
-        return {"error": "Asset file not found on disk."}, 404
+        # Resolve against project root or db dir if raw_path was relative
+        db_dir = os.path.dirname(os.path.abspath(current_app.config["DATABASE_PATH"]))
+        project_root = os.path.dirname(db_dir)
+        candidates = [
+            os.path.abspath(os.path.join(project_root, raw_path)),
+            os.path.abspath(os.path.join(db_dir, raw_path)),
+            os.path.abspath(os.path.join(db_dir, "uploads", str(row["presentation_id"]), os.path.basename(raw_path))),
+            os.path.abspath(os.path.join(current_app.root_path, raw_path)),
+        ]
+        found = False
+        for c in candidates:
+            if os.path.exists(c):
+                file_path = c
+                found = True
+                break
+        if not found:
+            return {"error": "Asset file not found on disk."}, 404
 
     response = send_file(
         file_path,

@@ -2,6 +2,7 @@ import json
 
 from flask import Blueprint, current_app
 
+from app.brand.store import deck_brand
 from app.database import get_connection
 from app.models.presentation import Presentation, Slide
 
@@ -28,7 +29,7 @@ def get_shared_presentation(identifier):
             """
             SELECT id, title, description, created_at, updated_at,
                    theme, datasets, variables, settings, schema_version, revision,
-                   share_token, is_shared
+                   share_token, is_shared, org_id, brand_id, brand_version_id
             FROM presentations
             WHERE share_token = ?
             """,
@@ -40,7 +41,7 @@ def get_shared_presentation(identifier):
                 """
                 SELECT id, title, description, created_at, updated_at,
                        theme, datasets, variables, settings, schema_version, revision,
-                       share_token, is_shared
+                       share_token, is_shared, org_id, brand_id, brand_version_id
                 FROM presentations
                 WHERE id = ?
                 """,
@@ -99,6 +100,7 @@ def get_shared_presentation(identifier):
             ).to_dict()
             for s in slide_rows
         ]
+        presentation["brand"] = deck_brand(connection, row["org_id"], row["brand_id"], row["brand_version_id"])
 
         return {"presentation": presentation}, 200
     finally:

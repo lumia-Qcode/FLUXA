@@ -85,6 +85,10 @@ class BaseProvider(ABC):
         """
         pass
 
+    def complete_json(self, system: str, user: str, max_tokens: int = 1500) -> Any:
+        """One JSON-answer model call (used by the research-grounded deck writer)."""
+        raise NotConfiguredError(f"The {self.name} provider cannot answer free-form JSON prompts.")
+
     @abstractmethod
     def chat_ops(
         self,

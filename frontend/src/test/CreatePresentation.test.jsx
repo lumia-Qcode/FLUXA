@@ -4,12 +4,16 @@ import { MemoryRouter } from "react-router-dom";
 import App from "../App.jsx";
 import { mockApi } from "./mockApi.js";
 
-function renderCreate() {
-  return render(
+// /create is behind sign-in: wait until the account check finishes and the form shows.
+async function renderCreate() {
+  const view = render(
     <MemoryRouter initialEntries={["/create"]}>
       <App />
     </MemoryRouter>
   );
+  // The create page loads on demand (route splitting); allow it a moment to arrive.
+  await screen.findByLabelText(/topic or prompt/i, {}, { timeout: 5000 });
+  return view;
 }
 
 const baseHandlers = {
@@ -18,7 +22,7 @@ const baseHandlers = {
 
 test("an example chip fills the prompt and updates the counter", async () => {
   mockApi(baseHandlers);
-  renderCreate();
+  await renderCreate();
 
   await userEvent.click(screen.getByRole("button", { name: "Q4 marketing strategy" }));
 
@@ -28,7 +32,7 @@ test("an example chip fills the prompt and updates the counter", async () => {
 
 test("shows a validation error when title and prompt are both empty", async () => {
   const calls = mockApi(baseHandlers);
-  renderCreate();
+  await renderCreate();
 
   await userEvent.click(screen.getByRole("button", { name: /create presentation/i }));
 
@@ -50,7 +54,7 @@ test("creates the presentation, adds a title slide and opens the editor", async 
       },
     },
   });
-  renderCreate();
+  await renderCreate();
 
   await userEvent.type(screen.getByLabelText(/topic or prompt/i), "AI basics");
   await userEvent.click(screen.getByRole("button", { name: /create presentation/i }));
@@ -66,7 +70,7 @@ test("shows the server error when creation fails", async () => {
     ...baseHandlers,
     "POST /api/presentations": { status: 400, body: { error: "Title is invalid." } },
   });
-  renderCreate();
+  await renderCreate();
 
   await userEvent.type(screen.getByLabelText(/title/i), "Broken");
   await userEvent.click(screen.getByRole("button", { name: /create presentation/i }));

@@ -1,10 +1,9 @@
-import json
-
 from app.prompts.presentation import (
     PRESENTATION_SYSTEM_PROMPT,
     build_presentation_prompt,
 )
 from app.services.ai_client import generate_ai_response
+from app.services.slide_parser import extract_json
 
 
 def generate_presentation(
@@ -28,9 +27,9 @@ def generate_presentation(
     )
 
     try:
-        presentation = json.loads(response)
-    except json.JSONDecodeError as error:
-        raise ValueError("AI returned invalid JSON for the presentation.") from error
+        presentation = extract_json(response)
+    except Exception as error:
+        raise ValueError(f"AI returned invalid JSON for the presentation: {error}") from error
 
     if not isinstance(presentation, dict):
         raise ValueError("Presentation response must be a JSON object.")
@@ -38,9 +37,8 @@ def generate_presentation(
     if not isinstance(presentation.get("slides"), list):
         raise ValueError("Presentation response must contain a slides list.")
 
-    if len(presentation["slides"]) != slide_count:
-        raise ValueError(
-            f"Expected {slide_count} slides, but AI returned {len(presentation['slides'])}."
-        )
+    slides = presentation["slides"]
+    if len(slides) > slide_count:
+        presentation["slides"] = slides[:slide_count]
 
     return presentation

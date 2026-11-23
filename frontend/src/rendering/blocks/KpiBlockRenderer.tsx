@@ -21,9 +21,21 @@ export const KpiBlockRenderer: React.FC<Props> = ({ block, datasets = {}, variab
   const resolvedValueResult = resolveBinding(value, reactiveScope);
   const resolvedDeltaResult = delta !== undefined ? resolveBinding(delta, reactiveScope) : null;
 
+  const boundVarName =
+    (block as any).variable ||
+    (block as any).props?.variable ||
+    Object.keys(variables).find((k) => k.startsWith("target_metric") || k.startsWith("metric_scale"));
+  const boundVar = boundVarName ? variables[boundVarName] : undefined;
+  const scaleMultiplier =
+    boundVar && typeof boundVar.value === "number" && boundVar.value !== 50
+      ? boundVar.value / 50
+      : 1;
+
   const rawTargetVal = resolvedValueResult.value;
   const isNumeric = typeof rawTargetVal === "number" && !isNaN(rawTargetVal);
-  const targetNum = isNumeric ? rawTargetVal : 0;
+  const targetNum = isNumeric
+    ? (scaleMultiplier !== 1 ? Math.round(rawTargetVal * scaleMultiplier) : rawTargetVal)
+    : 0;
 
   // Animated count-up state
   const [currentNum, setCurrentNum] = useState<number>(() => targetNum);
@@ -99,9 +111,14 @@ export const KpiBlockRenderer: React.FC<Props> = ({ block, datasets = {}, variab
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
-        padding: "1rem 1.5rem",
+        padding: "1.5rem 2rem",
         boxSizing: "border-box",
         position: "relative",
+        background: "var(--theme-card-bg, rgba(255, 255, 255, 0.05))",
+        border: "1px solid var(--theme-card-border, rgba(255, 255, 255, 0.12))",
+        borderRadius: "18px",
+        backdropFilter: "blur(10px)",
+        boxShadow: "0 14px 36px rgba(0, 0, 0, 0.12)",
       }}
       className="kpi-block-container block-kpi"
     >

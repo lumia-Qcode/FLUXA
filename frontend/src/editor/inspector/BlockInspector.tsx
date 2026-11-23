@@ -8,6 +8,7 @@ import { Select } from "../../ui/Select";
 import { BoundField } from "../../ui/BoundField";
 import { commands } from "../store/documentStore";
 import { useDocument } from "../store/DocumentContext";
+import { Model3DSearch } from "./Model3DSearch";
 
 interface BlockInspectorProps {
   block: Block;
@@ -76,6 +77,70 @@ export const BlockInspector: React.FC<BlockInspectorProps> = ({ block }) => {
           onChange={(val) => updateProp({ rotation: Math.round(val) })}
         />
       </div>
+
+      {/* Image Block Options */}
+      {block.type === "image" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--ink-2)", letterSpacing: "0.02em" }}>
+            IMAGE SETTINGS
+          </span>
+          <Field
+            label="Image URL / Asset"
+            value={(block as any).assetId || (block as any).url || ""}
+            onChange={(e) => updateProp({ assetId: e.target.value } as any)}
+          />
+          <Select
+            label="Fit Mode"
+            value={(block as any).fit || "cover"}
+            options={[
+              { value: "cover", label: "Cover" },
+              { value: "contain", label: "Contain" },
+            ]}
+            onChange={(fit: any) => updateProp({ fit } as any)}
+          />
+          <Select
+            label="Visual Mode / 3D Model"
+            value={(block as any).model3d || ""}
+            options={[
+              { value: "", label: "2D Standard Image" },
+              { value: "globe", label: "🌐 3D Interactive Earth Globe" },
+              { value: "crystal", label: "💎 3D Holographic Tech Prism" },
+              { value: "medical", label: "🏥 3D Medical & Hospital Cross" },
+              { value: "dna", label: "🧬 3D DNA Helix / Biotech" },
+              { value: "torus", label: "🪐 3D Quantum Torus Ring" },
+              { value: "automotive", label: "🚗 3D Automotive & Mobility" },
+              { value: "finance", label: "📈 3D Fintech & Capital Flow" },
+              { value: "city", label: "🏙️ 3D Smart City & Real Estate" },
+              { value: "energy", label: "⚡ 3D Clean Energy & Turbine" },
+              { value: "server", label: "🖥️ 3D Server Node & Compute" },
+              { value: "logistics", label: "📦 3D Logistics & Supply Chain" },
+              { value: "custom", label: "📁 3D Custom GLB / GLTF Model" },
+            ]}
+            onChange={(model3d: any) => updateProp({ model3d: model3d || null } as any)}
+          />
+          {Boolean((block as any).model3d) && (
+            <Field
+              label="Custom 3D Model URL (.glb optional)"
+              value={(block as any).modelUrl || ""}
+              placeholder="https://.../model.glb"
+              onChange={(e) => updateProp({ modelUrl: e.target.value } as any)}
+            />
+          )}
+          <Model3DSearch
+            current={(block as any).sketchfab || (block as any).props?.sketchfab || null}
+            onPick={(sketchfab) =>
+              updateProp({ sketchfab, props: { ...((block as any).props || {}), sketchfab } } as any)
+            }
+          />
+          <NumberField
+            label="Corner Radius (px)"
+            value={(block as any).radius || 0}
+            min={0}
+            max={100}
+            onChange={(radius) => updateProp({ radius } as any)}
+          />
+        </div>
+      )}
 
       {/* Text Style Options */}
       {block.type === "text" && (
@@ -343,6 +408,34 @@ export const BlockInspector: React.FC<BlockInspectorProps> = ({ block }) => {
               })
             }
           />
+          <Select
+            label="Visual Mode / 3D Model"
+            value={(block as any).model3d || ""}
+            options={[
+              { value: "", label: "2D Standard Image" },
+              { value: "globe", label: "🌐 3D Interactive Earth Globe" },
+              { value: "crystal", label: "💎 3D Holographic Tech Prism" },
+              { value: "medical", label: "🏥 3D Medical & Hospital Cross" },
+              { value: "dna", label: "🧬 3D DNA Helix / Biotech" },
+              { value: "torus", label: "🪐 3D Quantum Torus Ring" },
+              { value: "automotive", label: "🚗 3D Automotive & Mobility" },
+              { value: "finance", label: "📈 3D Fintech & Capital Flow" },
+              { value: "city", label: "🏙️ 3D Smart City & Real Estate" },
+              { value: "energy", label: "⚡ 3D Clean Energy & Turbine" },
+              { value: "server", label: "🖥️ 3D Server Node & Compute" },
+              { value: "logistics", label: "📦 3D Logistics & Supply Chain" },
+              { value: "custom", label: "📁 3D Custom GLB / GLTF Model" },
+            ]}
+            onChange={(model3d: any) => updateProp({ model3d: model3d || null } as any)}
+          />
+          {Boolean((block as any).model3d) && (
+            <Field
+              label="Custom 3D Model URL (.glb optional)"
+              value={(block as any).modelUrl || ""}
+              placeholder="https://.../model.glb"
+              onChange={(e) => updateProp({ modelUrl: e.target.value } as any)}
+            />
+          )}
           <NumberField
             label="Corner Radius (px)"
             value={block.radius || 0}

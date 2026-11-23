@@ -19,7 +19,8 @@
               "enum": [
                 "user",
                 "import",
-                "ai-estimate"
+                "ai-estimate",
+                "research"
               ],
               "title": "Source",
               "type": "string"
@@ -38,6 +39,21 @@
               },
               "title": "Rows",
               "type": "array"
+            },
+            "citations": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Citations"
             }
           },
           "required": [
@@ -3286,10 +3302,10 @@
             "fontWeight": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "type": "string"
                 },
                 {
-                  "type": "string"
+                  "type": "integer"
                 },
                 {
                   "type": "null"

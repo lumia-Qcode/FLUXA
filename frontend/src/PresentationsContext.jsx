@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { api } from "./api.js";
+import { useAuth } from "./auth/AuthContext";
 
 const PresentationsContext = createContext(null);
 
@@ -20,9 +21,19 @@ export function PresentationsProvider({ children }) {
     }
   }, []);
 
+  // Decks belong to the signed-in organisation: load them only once someone is signed in,
+  // so public pages (landing, shared links) never call the private API.
+  const { account } = useAuth();
+  const accountKey = account ? `${account.user.id}:${account.org.id}` : "";
   useEffect(() => {
+    if (!accountKey) {
+      setPresentations([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     refresh();
-  }, [refresh]);
+  }, [refresh, accountKey]);
 
   return (
     <PresentationsContext.Provider value={{ presentations, loading, error, refresh }}>

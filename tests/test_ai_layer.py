@@ -45,7 +45,7 @@ def test_compiler_content_limits():
     assert len(repaired["subtitle"]) <= 100
     assert len(repaired["bullets"]) <= 5
     for b in repaired["bullets"]:
-        assert len(b) <= 90
+        assert len(b) <= 220  # room for a complete sourced claim and its [n] marks; cut at a word
     assert len(repaired["chart"]["data"]) <= 12
 
 

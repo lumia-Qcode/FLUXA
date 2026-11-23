@@ -8,6 +8,8 @@ export interface StreamEvent {
 }
 
 export interface StreamCallbacks {
+  onResearchStart?: (data: { status: string; topic: string }) => void;
+  onResearchComplete?: (data: { status: string; citations: any[]; summary?: string; kpi?: any }) => void;
   onOutline?: (outline: any) => void;
   onSlide?: (slideData: { index: number; slide: any; datasets?: any }) => void;
   onProgress?: (progress: { current: number; total: number }) => void;
@@ -84,7 +86,11 @@ export async function postStream(
             // Keep rawData as string
           }
 
-          if (currentEvent === "outline") {
+          if (currentEvent === "research_start") {
+            callbacks.onResearchStart?.(parsedData);
+          } else if (currentEvent === "research_complete") {
+            callbacks.onResearchComplete?.(parsedData);
+          } else if (currentEvent === "outline") {
             callbacks.onOutline?.(parsedData);
           } else if (currentEvent === "slide") {
             callbacks.onSlide?.(parsedData);

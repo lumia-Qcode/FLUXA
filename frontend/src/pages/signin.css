@@ -1,0 +1,36 @@
+/* Sign-in page in the landing page's theme (see landing.css): black canvas, white type,
+   IBM Plex Sans, pill controls, the #aebfff accent pill and #101013 cards. */
+.si{min-height:100vh;background:#000;color:#fff;font-family:'IBM Plex Sans',system-ui,sans-serif;display:flex;flex-direction:column}
+.si-top{display:flex;align-items:center;justify-content:space-between;padding:22px 28px}
+.si-logo{font-weight:700;font-size:18px;letter-spacing:.02em;background:none;border:0;color:#fff;cursor:pointer;padding:0;font-family:inherit}
+.si-home{background:#1b1b1e;color:#b9b9c0;border:0;border-radius:999px;padding:8px 16px;font:500 13px/1 inherit;font-family:inherit;cursor:pointer}
+.si-home:hover{color:#fff}
+.si-main{flex:1;display:grid;place-items:center;padding:24px 16px 64px}
+.si-wrap{width:100%;max-width:400px}
+.si-word{display:block;width:180px;margin:0 auto 28px}
+.si-card{background:#101013;border:1px solid #26262b;border-radius:18px;padding:28px 24px 24px}
+.si-card h1{margin:0 0 8px;font-size:24px;line-height:1.2;font-weight:600;letter-spacing:-.01em}
+.si-sub{margin:0 0 22px;font-size:13px;line-height:1.55;color:#a4a4ac}
+.si-tabs{display:flex;gap:4px;padding:5px;background:#1b1b1e;border-radius:999px;margin:0 0 22px}
+.si-tabs button{flex:1;background:none;border:0;color:#b9b9c0;font:500 13px/1 inherit;font-family:inherit;padding:9px 12px;border-radius:999px;cursor:pointer}
+.si-tabs button:hover{color:#fff}
+.si-tabs button[aria-selected="true"]{background:#3a3a40;color:#fff}
+.si-form{display:flex;flex-direction:column;gap:16px}
+.si-field{display:flex;flex-direction:column;gap:6px}
+.si-field label{font-size:12px;font-weight:500;color:#c9c9d0}
+.si-field input{height:44px;padding:0 16px;background:#0a0a0c;border:1px solid #2c2c32;border-radius:999px;color:#fff;font:400 14px inherit;font-family:inherit;outline:none;transition:border-color .12s ease}
+.si-field input::placeholder{color:#6b6b74}
+.si-field input:hover{border-color:#3a3a40}
+.si-field input:focus-visible{border-color:#aebfff;box-shadow:0 0 0 3px rgba(174,191,255,.18)}
+.si-field input:disabled{opacity:.6}
+.si-hint{font-size:11px;color:#8a8a93}
+.si-submit{height:44px;margin-top:6px;background:#aebfff;color:#0a0a0c;border:0;border-radius:999px;font:600 14px/1 inherit;font-family:inherit;cursor:pointer}
+.si-submit:hover:not(:disabled){background:#c6d2ff}
+.si-submit:focus-visible,.si-tabs button:focus-visible,.si-home:focus-visible,.si-logo:focus-visible{outline:2px solid #aebfff;outline-offset:2px}
+.si-submit:disabled{opacity:.6;cursor:default}
+.si-error{padding:12px 16px;background:#1a0d0f;border:1px solid #5c2329;border-radius:14px;color:#ffb4b9;font-size:13px;line-height:1.45}
+.si-foot{margin:18px 0 0;text-align:center;font-size:12px;color:#8a8a93}
+.si-foot button{background:none;border:0;padding:0;color:#aebfff;font:inherit;cursor:pointer}
+.si-foot button:hover{color:#c6d2ff;text-decoration:underline}
+@media(max-width:480px){.si-top{padding:18px 16px}.si-card{padding:24px 18px 20px}.si-word{width:150px;margin-bottom:22px}}
+@media(prefers-reduced-motion:reduce){.si-field input{transition:none}}

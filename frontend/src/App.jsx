@@ -1,13 +1,29 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { Routes, Route, Link } from "react-router-dom";
 import { PresentationsProvider } from "./PresentationsContext.jsx";
 import { ToastProvider } from "./ui";
-import { WorkspacePage } from "./pages/WorkspacePage";
-import { EditorRoute } from "./editor/EditorRoute";
-import { ShareViewer } from "./pages/ShareViewer";
-import { PrintRoute } from "./pages/PrintRoute";
-import { PresenterPage } from "./pages/PresenterPage";
-import CreatePresentation from "./pages/CreatePresentation.jsx";
+import { BrandLandingPage } from "./pages/BrandLandingPage";
+import { AuthProvider, RequireAuth } from "./auth/AuthContext";
+// Sign-in stays in the main chunk (~3 KB): every signed-out visit lands there first.
+import { SignInPage } from "./pages/SignInPage";
+
+// Every page except the landing page loads on demand (D3), so visiting one page no longer
+// downloads the editor, exporters, 3D and charts for all of them.
+const named = (load, name) => lazy(() => load().then((m) => ({ default: m[name] })));
+const WorkspacePage = named(() => import("./pages/WorkspacePage"), "WorkspacePage");
+const EditorRoute = named(() => import("./editor/EditorRoute"), "EditorRoute");
+const ShareViewer = named(() => import("./pages/ShareViewer"), "ShareViewer");
+const PrintRoute = named(() => import("./pages/PrintRoute"), "PrintRoute");
+const BrandsPage = named(() => import("./pages/BrandsPage"), "BrandsPage");
+const PresenterPage = named(() => import("./pages/PresenterPage"), "PresenterPage");
+const CreatePresentation = lazy(() => import("./pages/CreatePresentation.jsx"));
+const MemoryMapPage = named(() => import("./pages/MemoryMapPage"), "MemoryMapPage");
+const WatchPage = named(() => import("./pages/WatchPage"), "WatchPage");
+
+/** Shown for the moment a page's code is loading: the app background, no spinner flash. */
+function PageLoading() {
+  return <div aria-busy="true" style={{ minHeight: "100vh", backgroundColor: "var(--bg-app, #090A0D)" }} />;
+}
 
 function NotFound() {
   return (
@@ -40,7 +56,7 @@ function NotFound() {
           fontWeight: 500,
         }}
       >
-        Back to workspace
+        Back to home
       </Link>
     </div>
   );
@@ -49,26 +65,40 @@ function NotFound() {
 export default function App() {
   return (
     <ToastProvider>
+      <AuthProvider>
       <PresentationsProvider>
+        <Suspense fallback={<PageLoading />}>
         <Routes>
-          {/* Workspace screen */}
-          <Route index element={<WorkspacePage />} />
+          {/* 1. Extraordinary Brand Landing Page */}
+          <Route index element={<BrandLandingPage />} />
 
-          {/* Editor route */}
-          <Route path="presentations/:id" element={<EditorRoute />} />
+          {/* 2. "What are you presenting?" Workspace Page */}
+          <Route path="workspace" element={<RequireAuth><WorkspacePage /></RequireAuth>} />
+          <Route path="ai" element={<RequireAuth><WorkspacePage /></RequireAuth>} />
+
+          {/* 3. Editor route (Page 2 Overview & Page 3 Slide Editor) */}
+          <Route path="presentations/:id" element={<RequireAuth><EditorRoute /></RequireAuth>} />
 
           {/* AI Generator create page */}
-          <Route path="create" element={<CreatePresentation />} />
+          <Route path="create" element={<RequireAuth><CreatePresentation /></RequireAuth>} />
+          <Route path="brands" element={<RequireAuth><BrandsPage /></RequireAuth>} />
 
           {/* Full-bleed viewer & print routes */}
           <Route path="v/:id" element={<ShareViewer />} />
-          <Route path="print/:id" element={<PrintRoute />} />
-          <Route path="presenter/:id" element={<PresenterPage />} />
+          <Route path="print/:id" element={<RequireAuth><PrintRoute /></RequireAuth>} />
+          <Route path="presenter/:id" element={<RequireAuth><PresenterPage /></RequireAuth>} />
+          <Route path="map/:id" element={<RequireAuth><MemoryMapPage /></RequireAuth>} />
+          <Route path="watch/:id" element={<RequireAuth><WatchPage /></RequireAuth>} />
+
+          {/* Sign in / create account (public) */}
+          <Route path="login" element={<SignInPage />} />
 
           {/* Fallback */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </Suspense>
       </PresentationsProvider>
+      </AuthProvider>
     </ToastProvider>
   );
 }

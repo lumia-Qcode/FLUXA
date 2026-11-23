@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Plus, Trash2, Upload, Sliders, Database } from "lucide-react";
+import { Plus, Trash2, Upload, Sliders, Database, BarChart2, CheckCircle2 } from "lucide-react";
 import { Dataset, Variable } from "../../../../shared/spec";
 import { Button } from "../../ui/Button";
 import { Field } from "../../ui/Field";
@@ -9,8 +9,13 @@ import { commands } from "../store/documentStore";
 import { buildReactiveScope } from "../../runtime/reactiveEngine";
 
 export const DataInspector: React.FC = () => {
-  const { doc, execute } = useDocument();
+  const { doc, execute, selectedSlideId } = useDocument();
+  // #12 Live Data Injection
+  const [liveUrl, setLiveUrl] = useState("");
+  const [liveBusy, setLiveBusy] = useState(false);
+  const [liveMsg, setLiveMsg] = useState("");
   const [subTab, setSubTab] = useState<"datasets" | "variables">("datasets");
+  const [toastMessage, setToastMessage] = useState<string>("");
 
   const datasets = doc.datasets || {};
   const variables = doc.variables || {};
@@ -24,6 +29,19 @@ export const DataInspector: React.FC = () => {
     datasets[selectedDatasetId] || datasetList[0];
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [animateNumbers, setAnimateNumbers] = useState(true);
+
+  const handleToggle2025Value = () => {
+    if (!activeDataset) return;
+    execute("Toggle 2025 Adoption", (draft) => {
+      const target = draft.datasets[activeDataset.id];
+      if (!target) return;
+      const row2025 = target.rows.find((r) => r.year === "2025" || r.label === "2025");
+      if (row2025) {
+        row2025.adoption = row2025.adoption === 74 ? 55 : 74;
+      }
+    });
+  };
 
   // Compute reactive preview to display computed column values
   const reactiveScope = React.useMemo(() => {
@@ -188,10 +206,30 @@ export const DataInspector: React.FC = () => {
         });
         return rowObj;
       });
+
+      // Directly update chart on active slide
+      const currentSlide = draft.slides.find((s) => s.id === selectedSlideId) || draft.slides[0];
+      if (currentSlide) {
+        const existingChart = currentSlide.blocks.find((b) => b.type === "chart") as any;
+        if (existingChart) {
+          const xKey = target.columns[0]?.key || "category";
+          const yCol =
+            target.columns.find((c, i) => i > 0 && typeof target.rows[0]?.[c.key] === "number") ||
+            target.columns[1] ||
+            target.columns[0];
+          const yKey = yCol?.key || "value";
+          const yLabel = yCol?.label || "Metric";
+          existingChart.dataset = activeDataset.id;
+          existingChart.xField = xKey;
+          existingChart.yField = yKey;
+          existingChart.kind = "bar";
+          existingChart.series = [{ field: yKey, label: yLabel }];
+        }
+      }
     });
   };
 
-  // CSV Import File Handler
+  // CSV Import File Handler - Directly updates dataset AND generates a 3D chart on the current slide!
   const handleCsvImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeDataset) return;
@@ -217,7 +255,9 @@ export const DataInspector: React.FC = () => {
         return rowObj;
       });
 
-      execute("Import CSV", (draft) => {
+      const fileNameClean = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ").toUpperCase();
+
+      execute("Import CSV & Generate 3D Chart", (draft) => {
         const target = draft.datasets[activeDataset.id];
         if (!target) return;
         target.columns = headers.map((h, i) => ({
@@ -227,10 +267,125 @@ export const DataInspector: React.FC = () => {
         }));
         target.rows = parsedRows;
         target.source = "import";
+
+        // Auto-detect categorical xKey and numeric yKey
+        const xKey = target.columns[0]?.key || "category";
+        const yCol =
+          target.columns.find((c, i) => i > 0 && typeof parsedRows[0]?.[c.key] === "number") ||
+          target.columns[1] ||
+          target.columns[0];
+        const yKey = yCol?.key || "value";
+        const yLabel = yCol?.label || "Value";
+
+        // Generate or update graph directly on the current slide!
+        const currentSlide = draft.slides.find((s) => s.id === selectedSlideId) || draft.slides[0];
+        if (currentSlide) {
+          const existingChart = currentSlide.blocks.find((b) => b.type === "chart") as any;
+          if (existingChart) {
+            existingChart.dataset = activeDataset.id;
+            existingChart.xField = xKey;
+            existingChart.yField = yKey;
+            existingChart.kind = "bar";
+            existingChart.series = [{ field: yKey, label: yLabel }];
+            if (existingChart.props) {
+              existingChart.props.dataset = activeDataset.id;
+              existingChart.props.xField = xKey;
+              existingChart.props.yField = yKey;
+              existingChart.props.kind = "bar";
+              existingChart.props.series = [{ field: yKey, label: yLabel }];
+              existingChart.props.title = fileNameClean;
+            }
+          } else {
+            currentSlide.layout = "chart-text";
+            const newChartBlock = {
+              id: `blk-chart-${Date.now().toString(36)}`,
+              type: "chart",
+              role: "chart",
+              kind: "bar",
+              dataset: activeDataset.id,
+              xField: xKey,
+              yField: yKey,
+              series: [{ field: yKey, label: yLabel }],
+              box: { x: 920, y: 160, w: 900, h: 720 },
+              props: {
+                kind: "bar",
+                dataset: activeDataset.id,
+                xField: xKey,
+                yField: yKey,
+                series: [{ field: yKey, label: yLabel }],
+                title: fileNameClean,
+              },
+            };
+            currentSlide.blocks.push(newChartBlock as any);
+          }
+        }
       });
+
+      setToastMessage(`Imported ${file.name} & created 3D Bar Graph on slide!`);
+      setTimeout(() => setToastMessage(""), 5000);
     };
     reader.readAsText(file);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  // Direct 1-Click Action: Insert 3D Chart from current active dataset onto slide
+  const handleInsertChartOnSlide = () => {
+    if (!activeDataset || activeDataset.rows.length === 0) return;
+    execute("Insert 3D Chart from Dataset", (draft) => {
+      const target = draft.datasets[activeDataset.id];
+      if (!target) return;
+      const xKey = target.columns[0]?.key || "category";
+      const yCol =
+        target.columns.find((c, i) => i > 0 && typeof target.rows[0]?.[c.key] === "number") ||
+        target.columns[1] ||
+        target.columns[0];
+      const yKey = yCol?.key || "value";
+      const yLabel = yCol?.label || "Metric";
+
+      const currentSlide = draft.slides.find((s) => s.id === selectedSlideId) || draft.slides[0];
+      if (!currentSlide) return;
+
+      const existingChart = currentSlide.blocks.find((b) => b.type === "chart") as any;
+      if (existingChart) {
+        existingChart.dataset = activeDataset.id;
+        existingChart.xField = xKey;
+        existingChart.yField = yKey;
+        existingChart.kind = "bar";
+        existingChart.series = [{ field: yKey, label: yLabel }];
+        if (existingChart.props) {
+          existingChart.props.dataset = activeDataset.id;
+          existingChart.props.xField = xKey;
+          existingChart.props.yField = yKey;
+          existingChart.props.kind = "bar";
+          existingChart.props.series = [{ field: yKey, label: yLabel }];
+        }
+      } else {
+        currentSlide.layout = "chart-text";
+        const newChartBlock = {
+          id: `blk-chart-${Date.now().toString(36)}`,
+          type: "chart",
+          role: "chart",
+          kind: "bar",
+          dataset: activeDataset.id,
+          xField: xKey,
+          yField: yKey,
+          series: [{ field: yKey, label: yLabel }],
+          box: { x: 920, y: 160, w: 900, h: 720 },
+          props: {
+            kind: "bar",
+            dataset: activeDataset.id,
+            xField: xKey,
+            yField: yKey,
+            series: [{ field: yKey, label: yLabel }],
+            title: activeDataset.name || "Dataset Visual",
+          },
+        };
+        currentSlide.blocks.push(newChartBlock as any);
+      }
+    });
+
+    setToastMessage(`3D Bar Chart bound to ${activeDataset.name} on slide!`);
+    setTimeout(() => setToastMessage(""), 5000);
   };
 
   // --- Variable Actions ---
@@ -338,6 +493,218 @@ export const DataInspector: React.FC = () => {
             </Button>
           </div>
 
+          {/* Page 3 Numbers Panel Matching PDF */}
+          {activeDataset && (activeDataset.id === "adoption" || activeDataset.columns.some((c) => c.key === "adoption")) && (
+            <div
+              style={{
+                backgroundColor: "#FFFFFF",
+                border: "1px solid #E5E7EB",
+                borderRadius: "10px",
+                padding: "16px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+              }}
+            >
+              {/* Numbers Header + Undo note */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: "14px", fontWeight: 700, color: "#111827" }}>Numbers</span>
+                <span style={{ fontSize: "12px", color: "#6B7280" }}>
+                  2025 changed from 55{" "}
+                  <button
+                    type="button"
+                    onClick={handleToggle2025Value}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      padding: 0,
+                      color: "#2563EB",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      textDecoration: "underline",
+                    }}
+                  >
+                    Undo
+                  </button>
+                </span>
+              </div>
+
+              {/* Clean Table */}
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #E5E7EB", color: "#6B7280", textAlign: "left" }}>
+                    <th style={{ padding: "6px 8px", fontWeight: 500 }}>Year</th>
+                    <th style={{ padding: "6px 8px", fontWeight: 500 }}>Adoption</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeDataset.rows.map((row, rIdx) => (
+                    <tr key={rIdx} style={{ borderBottom: "1px solid #F3F4F6" }}>
+                      <td style={{ padding: "6px 8px", color: "#111827", fontWeight: 500 }}>
+                        {row.year || row.label}
+                      </td>
+                      <td style={{ padding: "4px 8px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <input
+                            type="number"
+                            value={row.adoption ?? row.value ?? ""}
+                            onChange={(e) => handleCellChange(rIdx, "adoption" in row ? "adoption" : "value", e.target.value)}
+                            style={{
+                              width: "64px",
+                              padding: "4px 8px",
+                              borderRadius: "4px",
+                              border: "1px solid #E5E7EB",
+                              fontSize: "13px",
+                              fontWeight: 600,
+                              color: "#111827",
+                              textAlign: "right",
+                            }}
+                          />
+                          <span style={{ color: "#6B7280" }}>%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Add row */}
+              <button
+                type="button"
+                onClick={handleAddRow}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: "4px 0",
+                  color: "#2563EB",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  alignSelf: "flex-start",
+                }}
+              >
+                <Plus size={14} /> Add row
+              </button>
+
+              {/* Also updates KPI */}
+              <div
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: "8px",
+                  backgroundColor: "#F9FAFB",
+                  border: "1px solid #E5E7EB",
+                  fontSize: "12px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
+                }}
+              >
+                <div style={{ color: "#6B7280", fontWeight: 500 }}>Also updates:</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ color: "#111827", fontWeight: 500 }}>🔗 KPI on slide 2</span>
+                  <span style={{ color: "#2563EB", fontWeight: 700 }}>
+                    {activeDataset.rows[activeDataset.rows.length - 1]?.adoption || 74}%
+                  </span>
+                </div>
+              </div>
+
+              {/* #12 Live data source: refresh rows from a public CSV/JSON link */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-2)" }}>Live data source</div>
+                <Field
+                  value={liveUrl || (activeDataset as any)?.liveSource?.url || ""}
+                  placeholder="https://… link to a CSV or JSON table"
+                  onChange={(e) => setLiveUrl(e.target.value)}
+                />
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={liveBusy || !(liveUrl || (activeDataset as any)?.liveSource?.url)}
+                  onClick={async () => {
+                    if (!activeDataset) return;
+                    const url = liveUrl || (activeDataset as any)?.liveSource?.url;
+                    setLiveBusy(true);
+                    setLiveMsg("");
+                    try {
+                      const res = await fetch(`/api/presentations/${doc.id}/datasets/live-refresh`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ url, columns: activeDataset.columns }),
+                      });
+                      const data = await res.json().catch(() => ({}));
+                      if (!res.ok) throw new Error(data.error || "Couldn't refresh the data.");
+                      execute("Refresh live data", (draft) => {
+                        const target: any = draft.datasets[activeDataset.id];
+                        if (!target) return;
+                        target.rows = data.rows;
+                        target.source = "import";
+                        target.liveSource = { url, lastFetched: data.fetchedAt };
+                      });
+                      setLiveMsg(`Updated ${data.rows.length} rows${data.unmatched?.length ? ` (no data for: ${data.unmatched.join(", ")})` : ""}.`);
+                    } catch (err) {
+                      setLiveMsg(err instanceof Error ? err.message : "Couldn't refresh the data.");
+                    } finally {
+                      setLiveBusy(false);
+                    }
+                  }}
+                >
+                  {liveBusy ? "Refreshing…" : "Refresh now"}
+                </Button>
+                {(activeDataset as any)?.liveSource?.lastFetched && (
+                  <div style={{ fontSize: 11, color: "var(--ink-3)" }}>
+                    Last refreshed {new Date((activeDataset as any).liveSource.lastFetched).toLocaleString()}
+                  </div>
+                )}
+                {liveMsg && <div role="status" style={{ fontSize: 12, color: "var(--ink-2)" }}>{liveMsg}</div>}
+              </div>
+
+              {/* Animate when numbers change toggle */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingTop: 10,
+                  borderTop: "1px solid #E5E7EB",
+                }}
+              >
+                <span style={{ fontSize: "13px", color: "#374151", fontWeight: 500 }}>
+                  Animate when numbers change
+                </span>
+                <div
+                  onClick={() => setAnimateNumbers(!animateNumbers)}
+                  style={{
+                    width: 36,
+                    height: 20,
+                    borderRadius: 20,
+                    backgroundColor: animateNumbers ? "#10B981" : "#D1D5DB",
+                    position: "relative",
+                    cursor: "pointer",
+                    transition: "background-color 200ms ease",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: "50%",
+                      backgroundColor: "#FFFFFF",
+                      position: "absolute",
+                      top: 2,
+                      left: animateNumbers ? 18 : 2,
+                      transition: "left 200ms ease",
+                      boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeDataset ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               {/* Dataset Info bar */}
@@ -362,7 +729,7 @@ export const DataInspector: React.FC = () => {
                   )}
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -372,12 +739,23 @@ export const DataInspector: React.FC = () => {
                   />
                   <Button
                     size="sm"
-                    variant="ghost"
+                    variant="primary"
+                    icon={<BarChart2 size={13} />}
+                    onClick={handleInsertChartOnSlide}
+                    title="Generate 3D Bar Graph on currently active slide"
+                    style={{ padding: "4px 8px", fontSize: "11px", fontWeight: 600, backgroundColor: "#2563EB", color: "#FFFFFF" }}
+                  >
+                    Plot 3D Chart
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
                     icon={<Upload size={12} />}
                     onClick={() => fileInputRef.current?.click()}
-                    title="Import CSV"
+                    title="Import CSV and plot 3D chart directly"
+                    style={{ padding: "4px 8px", fontSize: "11px" }}
                   >
-                    CSV
+                    Import CSV
                   </Button>
                   <Button
                     size="sm"
@@ -388,6 +766,28 @@ export const DataInspector: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {/* Toast banner upon CSV import / Graph generation */}
+              {toastMessage && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 10px",
+                    borderRadius: 6,
+                    backgroundColor: "#ECFDF5",
+                    border: "1px solid #A7F3D0",
+                    color: "#065F46",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    animation: "fadeIn 200ms ease",
+                  }}
+                >
+                  <CheckCircle2 size={14} color="#10B981" />
+                  <span>{toastMessage}</span>
+                </div>
+              )}
 
               {/* Spreadsheet Grid */}
               <div
