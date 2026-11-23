@@ -156,21 +156,25 @@ def generate_presentation_route():
                 user_outline = values.get("outline")
                 result = None
                 for kind, payload in run_with_events(lambda progress: build_deck(provider, values, user_outline, progress)):
-                    if kind == "progress":
-                        message, extra = payload
-                        yield sse("text", {"delta": f"[PROGRESS: {message}]", "detail": extra})
-                    else:
+                    if kind != "progress":
                         result = payload
+                        continue
+                    message, extra = payload
+                    if message == "__research_complete__":
+                        d = extra["dossier"]
+                        yield sse("research_complete", {
+                            "status": _research_status(d),
+                            "citations": d.get("citations", []),
+                            "summary": "",
+                            "research_mode": d.get("research_mode"),
+                            "trace": {k: v for k, v in (d.get("research_trace") or {}).items() if k != "queries"},
+                            "limitations": d.get("limitations", []),
+                        })
+                    elif message == "__outline__":
+                        yield sse("outline", extra["outline"])
+                    else:
+                        yield sse("text", {"delta": f"[PROGRESS: {message}]", "detail": extra})
                 dossier = result["dossier"]
-                yield sse("research_complete", {
-                    "status": _research_status(dossier),
-                    "citations": dossier.get("citations", []),
-                    "summary": "",
-                    "research_mode": dossier.get("research_mode"),
-                    "trace": {k: v for k, v in (dossier.get("research_trace") or {}).items() if k != "queries"},
-                    "limitations": dossier.get("limitations", []),
-                })
-                yield sse("outline", {k: v for k, v in result["outline"].items() if k != "research_dossier"})
                 total = len(result["slides"])
                 for ev in slide_events(result["slides"], result["datasets"]):
                     yield sse("slide", ev)

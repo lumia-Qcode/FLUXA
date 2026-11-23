@@ -22,8 +22,12 @@ Progress = Callable[[str, Dict[str, Any]], None]
 def research_and_outline(provider, values: Dict[str, Any], progress: Optional[Progress] = None) -> Dict[str, Any]:
     dossier = ResearchAgent(provider).research_topic(values["topic"], values["audience"], values["slide_count"], progress=progress)
     if progress:
+        progress("__research_complete__", {"dossier": dossier})  # shown as soon as research ends
         progress("Planning the slides from the evidence", {})
-    return DeckWriter(provider, progress).outline(values["topic"], values["slide_count"], values["audience"], values["language"], dossier)
+    outline = DeckWriter(provider, progress).outline(values["topic"], values["slide_count"], values["audience"], values["language"], dossier)
+    if progress:
+        progress("__outline__", {"outline": {k: v for k, v in outline.items() if k != "research_dossier"}})
+    return outline
 
 
 def build_deck(
@@ -33,14 +37,20 @@ def build_deck(
     progress: Optional[Progress] = None,
 ) -> Dict[str, Any]:
     """Returns {"outline", "slides": [{slide_order,title,content,spec}], "datasets", "dossier", "report"}."""
+    announced = False
     if not (isinstance(outline, dict) and outline.get("slides")):
         outline = research_and_outline(provider, values, progress)
+        announced = True
     dossier = outline.get("research_dossier") or {}
     if not dossier.get("sources") and "sources" not in dossier:
         # An outline from an older client or the API, without research attached.
         dossier = ResearchAgent(provider).research_topic(values["topic"], values["audience"], values["slide_count"], progress=progress)
         outline = {**outline, "research_dossier": dossier}
 
+    if progress and not announced:
+        # A reviewed outline came from the client: announce its research and outline now.
+        progress("__research_complete__", {"dossier": dossier})
+        progress("__outline__", {"outline": {k: v for k, v in outline.items() if k != "research_dossier"}})
     writer = DeckWriter(provider, progress)
     written = writer.write(outline, values["topic"], values["audience"], values["language"])
 

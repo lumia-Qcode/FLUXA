@@ -174,51 +174,25 @@ export const WorkspacePage: React.FC = () => {
               }
             }, 700);
           },
-          onError: async (err) => {
-            if (abortCtrl.signal.aborted) return;
-            addLog("Streaming failed, retrying without streaming");
-            console.warn("Stream error, falling back to synchronous generation:", err);
-            if (!isDone) {
-              try {
-                const res = await api.generatePresentation({
-                  topic,
-                  title: topic.slice(0, 50),
-                  slide_count: requestedSlides,
-                  audience: tone || "General audience",
-                  language: language || "English",
-                  theme: "midnight",
-                  stream: false,
-                });
-                if (res?.presentation?.id) {
-                  navigate(`/presentations/${res.presentation.id}?view=overview`);
-                  return;
-                }
-              } catch (e2) {
-                console.error("Fallback error:", e2);
-              }
-              setPipelinePhase("error");
-            }
+          onError: (err) => {
+            if (abortCtrl.signal.aborted || isDone) return;
+            // No silent second generation: it doubled the wait and the AI cost.
+            const msg = typeof err === "string" ? err : err?.message || "Generation stopped.";
+            addLog(`Generation stopped: ${msg}`);
+            setPipelinePhase("error");
           },
         },
         abortCtrl.signal
       );
+      // The connection ended without "done" (server restarted, network dropped): say so instead
+      // of leaving the modal open with the timer running forever.
+      if (!isDone && !abortCtrl.signal.aborted) {
+        addLog("The connection to the server closed before the deck was saved. Check your workspace, or try again.");
+        setPipelinePhase("error");
+      }
     } catch (err: any) {
       if (abortCtrl.signal.aborted) return;
-      console.warn("Pipeline stream caught error:", err);
-      try {
-        const res = await api.generatePresentation({
-          topic,
-          title: topic.slice(0, 50),
-          slide_count: requestedSlides,
-          audience: tone || "General audience",
-          language: language || "English",
-          stream: false,
-        });
-        if (res?.presentation?.id) {
-          navigate(`/presentations/${res.presentation.id}?view=overview`);
-          return;
-        }
-      } catch {}
+      addLog(`Generation stopped: ${err?.message || "the connection was lost"}`);
       setPipelinePhase("error");
     } finally {
       setIsGenerating(false);

@@ -371,11 +371,13 @@ export const PresenterPage: React.FC = () => {
       </div>
 
       {/* Main 2-Panel Content Area */}
-      <div style={{ flex: 1, display: "flex", padding: "16px", gap: "16px", overflow: "hidden" }}>
+      <div style={{ flex: 1, minHeight: 0, display: "flex", padding: "16px", gap: "16px", overflow: "hidden" }}>
         {/* Left: Current Slide Live Preview */}
         <div
           style={{
             flex: 6,
+            minWidth: 0,
+            minHeight: 0,
             display: "flex",
             flexDirection: "column",
             gap: "8px",
@@ -386,7 +388,7 @@ export const PresenterPage: React.FC = () => {
           }}
         >
           <span style={{ fontSize: "12px", fontWeight: 600, color: "#A4A4AB" }}>CURRENT SLIDE</span>
-          <div style={{ flex: 1, position: "relative" }}>
+          <div style={{ flex: 1, minHeight: 0, minWidth: 0, position: "relative" }}>
             {currentSlide && (
               <SlideStage
                 slide={currentSlide}
@@ -401,11 +403,12 @@ export const PresenterPage: React.FC = () => {
         </div>
 
         {/* Right: Next Slide Preview + Speaker Notes */}
-        <div style={{ flex: 4, display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div style={{ flex: 4, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", gap: "16px" }}>
           {/* Next Slide Preview Box */}
           <div
             style={{
               flex: 4,
+              minHeight: 0,
               display: "flex",
               flexDirection: "column",
               gap: "8px",
@@ -416,7 +419,7 @@ export const PresenterPage: React.FC = () => {
             }}
           >
             <span style={{ fontSize: "12px", fontWeight: 600, color: "#A4A4AB" }}>NEXT SLIDE</span>
-            <div style={{ flex: 1, position: "relative" }}>
+            <div style={{ flex: 1, minHeight: 0, minWidth: 0, position: "relative" }}>
               {nextSlide ? (
                 <SlideStage
                   slide={nextSlide}

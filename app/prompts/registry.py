@@ -245,7 +245,7 @@ register(
 register(
     Prompt(
         id="deck.outline",
-        version=1,
+        version=2,
         role="deck_author",
         rules=(
             "Design the structure of a presentation from the research evidence.\n\n"
@@ -262,6 +262,10 @@ register(
             "4. For each slide choose the visual that best communicates it: " + DECK_VISUALS + ". "
             "Choose 'chart' or 'kpi' ONLY when the evidence contains the actual numbers to plot; otherwise "
             "choose a diagram, image, timeline, process, comparison or table. Vary visuals across the deck.\n"
+            "4b. CHARTS: the request lists every figure found in the sources. When two or more of them are comparable "
+            "(same unit or same kind of quantity, e.g. several percentages, counts, sizes or years), plan one 'chart' slide "
+            "built from them, listing their evidence ids. When one figure is striking on its own, plan a 'kpi' slide. "
+            "Aim for 1 or 2 such slides per deck whenever the figures allow; never use a figure that is not in the list.\n"
             "5. List the evidence ids (like S3.2) each slide will rely on. Use only ids that appear in the evidence.\n"
             "6. Give an image_query for slides with an image, diagram or 3d visual: 2 to 6 words naming the "
             "specific thing to show (for example 'neuron synapse diagram', 'human brain lateral view').\n\n"
@@ -275,9 +279,10 @@ register(
             "Subject: $topic\nAudience: $audience\nPurpose: $purpose\nDepth: $depth\nLanguage: $language\n"
             "Return exactly $slide_count slides.\n"
             "Subtopics from the research plan: $subtopics\n\n"
+            "Figures found in the sources (evidence id, figure, sentence):\n$numbers\n\n"
             "Research evidence (ids in parentheses):\n$evidence"
         ),
-        untrusted=("prompt", "evidence"),
+        untrusted=("prompt", "evidence", "numbers"),
         max_tokens=2200,
     )
 )
@@ -285,7 +290,7 @@ register(
 register(
     Prompt(
         id="deck.slides",
-        version=1,
+        version=3,
         role="deck_author",
         rules=(
             "Write the content of the requested slides from the research evidence.\n\n"
@@ -306,6 +311,8 @@ register(
             "- Speaker notes: 2 to 4 sentences that explain the slide, using only the evidence.\n\n"
             "VISUAL\n"
             "- Keep the outline's visual type unless the evidence cannot support it.\n"
+            "- chart kind follows the data: parts of a whole -> donut or pie; change over time -> line or area; "
+            "ranking of many items -> bar; a few items side by side -> column. Do not default to bar.\n"
             "- chart: only with 2 to 12 data points whose values appear in the cited evidence; give the unit and, "
             "for each point, the evidence id it comes from. Never pad a chart with made-up values. If the numbers "
             "are not in the evidence, use visual type 'image' or 'diagram' instead.\n"
@@ -319,7 +326,7 @@ register(
             '{"slides": [{"index": <number from the request>, "title": "...", "subtitle": "<optional, <= 100 chars>", '
             '"points": [{"text": "...", "citations": ["S1"], "basis": "sourced|synthesis"}], '
             '"visual": {"type": "<' + DECK_VISUALS.replace(", ", "|") + '>", "image_query": "...", "caption": "...", '
-            '"chart": {"kind": "bar|line|pie|donut", "title": "...", "unit": "...", "data": [{"label": "...", "value": 0, "evidence": "S2.3"}]}, '
+            '"chart": {"kind": "column|bar|line|area|pie|donut", "title": "...", "unit": "...", "data": [{"label": "...", "value": 0, "evidence": "S2.3"}]}, '
             '"kpi": {"value": "...", "label": "...", "evidence": "S1.2"}, '
             '"steps": [{"title": "...", "body": "...", "citations": ["S1"]}], '
             '"columns": [{"title": "...", "items": ["..."]}], '
@@ -333,10 +340,11 @@ register(
             "Subject: $topic\nAudience: $audience\nLanguage: $language\n"
             "Whole deck outline, for context:\n$outline\n\n"
             "Write these slides:\n$slides\n\n"
+            "Figures found in the sources (for chart and kpi visuals; copy values exactly, cite the evidence id):\n$numbers\n\n"
             "Research evidence (source ids in brackets, evidence ids in parentheses):\n$evidence\n"
             "$feedback"
         ),
-        untrusted=("prompt", "evidence"),
+        untrusted=("prompt", "evidence", "numbers"),
         max_tokens=4200,
     )
 )

@@ -12,9 +12,12 @@ model is unavailable, slides are built from verbatim evidence sentences with cit
 
 from __future__ import annotations
 
+import contextvars
 import json
 import logging
+import os
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from app.ai import gateway
@@ -37,7 +40,13 @@ VISUAL_LAYOUT = {
     "image": "image-text", "diagram": "image-text", "3d": "image-text", "chart": "chart-text", "timeline": "timeline",
     "process": "timeline", "comparison": "comparison", "table": "table", "kpi": "big-number", "quote": "quote", "none": "bullets",
 }
-BATCH_SIZE = 4
+BATCH_SIZE = 3
+PARALLEL_BATCHES = 3
+
+
+def fact_check_enabled() -> bool:
+    """The extra model review pass (DECK_FACT_CHECK=on). Numbers are always checked in code."""
+    return os.environ.get("DECK_FACT_CHECK", "off").strip().lower() in ("1", "on", "true", "yes")
 POINT_MAX = 200
 
 # Phrases from the old template decks. A slide using them outside a business deck has drifted.
@@ -47,6 +56,17 @@ GENERIC_PHRASES = re.compile(
     r"governance mandate|institutional allocation|go-to-market|tam/sam/som|^slide \d+$)",
     re.I,
 )
+
+
+def figures_list(dossier: Dict[str, Any], limit: int = 40) -> str:
+    """Every figure the sources state, one per line: the raw material for sourced charts."""
+    lines = []
+    for src in dossier.get("sources") or []:
+        for ev in src.get("evidence") or []:
+            nums = ev.get("numbers") or []
+            if nums:
+                lines.append(f"({ev['id']}) {', '.join(nums[:4])}: {_clip(ev['text'], 200)}")
+    return "\n".join(lines[:limit]) or "(no figures were found in the sources; do not plan chart or kpi slides)"
 
 
 class GenerationUnavailable(RuntimeError):
@@ -145,10 +165,37 @@ def _claim_numbers(text: str) -> List[str]:
 # The writer
 # ---------------------------------------------------------------------------
 
+# Chart types per data shape, best first, with whether each is drawn in 3D. The first type not
+# yet used in this deck wins, so a deck with several charts gets different looks.
+_KIND_RENDER = {"donut": True, "pie": False, "line": True, "area": False, "column": True, "bar": False}
+
+
+def choose_chart_kind(rows: List[Dict[str, Any]], unit_and_title: str, requested: Any, used: List[str]) -> Tuple[str, bool]:
+    """Pick a chart type from the data's shape (share of a whole, change over time, ranking)."""
+    labels = [str(r.get("category", "")).strip() for r in rows]
+    values = [float(r.get("value") or 0) for r in rows]
+    timeish = sum(1 for lb in labels if re.match(r"^((1[5-9]|20)\d\d|Q[1-4]\b|(19|20)\d0s|(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\b)", lb, re.I))
+    percent = "%" in unit_and_title or "percent" in unit_and_title.lower() or "share" in unit_and_title.lower()
+    if percent and len(rows) >= 2 and 90 <= sum(values) <= 110:
+        options = ["donut", "pie"]                      # parts of a whole
+    elif len(rows) >= 3 and timeish >= len(rows) - 1:
+        options = ["line", "area"]                      # change over time
+    elif len(rows) >= 5 or max((len(lb) for lb in labels), default=0) > 18:
+        options = ["bar", "column"]                     # ranking / long labels: horizontal bars read best
+    else:
+        options = ["column", "bar"]                     # a few items side by side
+    req = {"donut": "donut", "pie": "pie", "line": "line", "area": "area", "column": "column", "bar": "column"}.get(str(requested or "").lower())
+    if req in options and req not in used:
+        options = [req] + [o for o in options if o != req]
+    kind = next((o for o in options if o not in used), options[0])
+    return kind, _KIND_RENDER[kind]
+
+
 class DeckWriter:
     def __init__(self, provider, progress: Optional[Callable[[str, Dict[str, Any]], None]] = None):
         self.provider = provider
         self.progress = progress
+        self._chart_kinds_used: List[str] = []
         self.report: Dict[str, Any] = {"removed_claims": [], "dropped_visuals": [], "repaired_slides": [], "extractive_slides": [], "model_errors": []}
 
     def note(self, message: str, **extra: Any) -> None:
@@ -179,7 +226,8 @@ class DeckWriter:
                     self.provider, "deck.outline", prompt=prompt, topic=topic, audience=plan.get("audience") or audience,
                     purpose=plan.get("purpose") or "not stated", depth=plan.get("depth") or "intermediate", language=language,
                     slide_count=slide_count, subtopics=", ".join(s["name"] for s in plan.get("subtopics") or []) or topic,
-                    evidence=digest(dossier, 9000, 3),
+                    numbers=figures_list(dossier),
+                    evidence=digest(dossier, 6000, 2),
                 )
             except Exception as exc:
                 self.report["model_errors"].append(f"outline: {exc}")
@@ -265,11 +313,18 @@ class DeckWriter:
         written: Dict[int, Dict[str, Any]] = {}
 
         if model_available(self.provider):
-            for start in range(0, len(items), BATCH_SIZE):
-                batch = items[start : start + BATCH_SIZE]
-                self.note(f"Writing slides {batch[0]['_index']}-{batch[-1]['_index']} of {len(items)} from the evidence", current=batch[-1]["_index"], total=len(items))
-                for slide in self._write_batch(batch, prompt, topic, audience, language, outline_text, dossier):
-                    written[slide["_index"]] = slide
+            # Batches run at the same time (they used to run one after another, ~25-50 s each).
+            batches = [items[i : i + BATCH_SIZE] for i in range(0, len(items), BATCH_SIZE)]
+            self.note(f"Writing {len(items)} slides from the evidence", current=0, total=len(items))
+            ctx = contextvars.copy_context()
+            with ThreadPoolExecutor(max_workers=min(PARALLEL_BATCHES, len(batches))) as pool:
+                futures = [pool.submit(ctx.copy().run, self._write_batch, b, prompt, topic, audience, language, outline_text, dossier) for b in batches]
+                done = 0
+                for fut in as_completed(futures):
+                    for slide in fut.result():
+                        written[slide["_index"]] = slide
+                    done += 1
+                    self.note(f"Wrote slide batch {done} of {len(batches)}", current=done, total=len(batches))
 
         position = {item["_index"]: n for n, item in enumerate(items)}
         validated = []
@@ -278,9 +333,10 @@ class DeckWriter:
             slide = self._validate(raw, item, evidence, topic) if raw else None
             validated.append(slide if slide else None)
 
-        # Topic and support review (one model call), then one repair pass for flagged slides.
+        # Rule checks (always) and the model's fact-check review (opt-in: it adds ~35 s), then one
+        # repair pass for the slides they flag.
         if model_available(self.provider) and any(validated):
-            flagged = self._review(validated, prompt, topic, dossier)
+            flagged = self._review(validated, prompt, topic, dossier) if fact_check_enabled() else self._rule_flags(validated, topic, dossier)
             for idx, issue in list(flagged.items()):
                 self.report["repaired_slides"].append({"index": idx, "issue": issue})
             if flagged:
@@ -309,8 +365,9 @@ class DeckWriter:
     def _write_batch(self, batch, prompt, topic, audience, language, outline_text, dossier, feedback: bool = False) -> List[Dict[str, Any]]:
         wanted_ids = {e for s in batch for e in s.get("evidence") or []}
         # Each slide sees its own evidence first, then the rest of the registry for context.
-        focused = digest(dossier, 5000, 6, only=wanted_ids) if wanted_ids else ""
-        general = digest(dossier, 6000 if focused else 9000, 3)
+        # The batch's own evidence in full, plus a short overview of the rest (smaller prompt = faster).
+        focused = digest(dossier, 4500, 6, only=wanted_ids) if wanted_ids else ""
+        general = digest(dossier, 2500 if focused else 6000, 1 if focused else 2)
         slides_text = "\n".join(
             f"- index {s['_index']}: title \"{s['title']}\"; purpose: {s.get('purpose') or 'n/a'}; visual: {s.get('visual')}; "
             f"subtopic: {s.get('subtopic') or 'n/a'}; evidence to use: {', '.join(s.get('evidence') or []) or 'any relevant'}"
@@ -324,6 +381,7 @@ class DeckWriter:
                 outline=outline_text, slides=slides_text,
                 evidence=(focused + "\n\n" + general) if focused else general,
                 feedback="Some slides were rejected by the fact check; follow each PROBLEM note." if feedback else "",
+                numbers=figures_list(dossier, 30),
             )
         except Exception as exc:
             self.report["model_errors"].append(f"slides {batch[0]['_index']}-{batch[-1]['_index']}: {exc}")
@@ -425,8 +483,10 @@ class DeckWriter:
                 cites.extend(c for c in ok[:1] if c not in cites)
             if len(rows) < 2:
                 return drop("chart values were not found in the cited evidence")
-            kind = chart.get("kind") if chart.get("kind") in ("bar", "line", "pie", "donut", "area") else "bar"
-            out["chart"] = {"kind": kind, "title": _clip(chart.get("title") or item["title"], 80), "unit": _clip(chart.get("unit") or "", 30), "data": rows[:12], "citations": cites}
+            unit = _clip(chart.get("unit") or "", 30)
+            kind, render3d = choose_chart_kind(rows[:12], unit + " " + str(chart.get("title") or ""), chart.get("kind"), self._chart_kinds_used)
+            self._chart_kinds_used.append(kind)
+            out["chart"] = {"kind": kind, "render3d": render3d, "title": _clip(chart.get("title") or item["title"], 80), "unit": unit, "data": rows[:12], "citations": cites}
         elif vtype == "kpi":
             kpi = v.get("kpi") or {}
             value = str(kpi.get("value") or "").strip()
@@ -492,6 +552,12 @@ class DeckWriter:
             vocab |= term_set(sub["name"])
         cited = [c for p in slide["points"] for c in p["citations"]]
         return not cited and not (term_set(text) & vocab)
+
+    def _rule_flags(self, slides, topic, dossier) -> Dict[int, str]:
+        return {
+            s["_index"]: "The slide is not clearly about the requested subject; rewrite it about the subject using the evidence."
+            for s in slides if s and self._drifted(s, topic, dossier)
+        }
 
     def _review(self, slides, prompt, topic, dossier) -> Dict[int, str]:
         flagged: Dict[int, str] = {}
@@ -606,7 +672,7 @@ def to_semantic(slides: List[Dict[str, Any]], dossier: Dict[str, Any], deck_titl
         if vtype == "chart" and v.get("chart"):
             ch = v["chart"]
             unit = f" ({ch['unit']})" if ch.get("unit") else ""
-            sem["chart"] = {"kind": ch["kind"], "title": ch["title"] + unit, "xField": "category", "yField": "value", "data": ch["data"],
+            sem["chart"] = {"kind": ch["kind"], "render3d": ch.get("render3d", True), "title": ch["title"] + unit, "xField": "category", "yField": "value", "data": ch["data"],
                             "source": "research", "citations": [numbers[c] for c in ch["citations"] if c in numbers]}
         if vtype == "kpi" and v.get("kpi"):
             k = v["kpi"]

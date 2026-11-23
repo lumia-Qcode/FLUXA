@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -176,6 +176,17 @@ export const ChartBlockRenderer: React.FC<Props> = ({
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const animateDuration = prefersReducedMotion || !interactive ? 0 : (options.animateMs ?? 700);
 
+  // A canvas can't resolve CSS variables: "var(--theme-font-body)" made the browser drop the whole
+  // font and draw 10px text. Read the theme's actual font family from the slide instead.
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [canvasFont, setCanvasFont] = useState("system-ui, sans-serif");
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const fam = getComputedStyle(el).getPropertyValue("--theme-font-body").trim();
+    if (fam && fam !== canvasFont) setCanvasFont(fam);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const chartOptions: any = {
     responsive: true,
     maintainAspectRatio: false,
@@ -186,11 +197,12 @@ export const ChartBlockRenderer: React.FC<Props> = ({
     } : false,
     plugins: {
       legend: {
-        display: options.legend !== "off",
+        // One series: its name is the chart title already shown above.
+        display: options.legend !== "off" && (seriesDefs.length > 1 || kind === "pie" || kind === "donut"),
         position: options.legend === "bottom" ? "bottom" : "top",
         labels: {
-          color: "var(--theme-text, #111827)",
-          font: { family: "var(--theme-font-body, sans-serif)", size: 14 },
+          color: "#94A3B8",
+          font: { family: canvasFont, size: 20 },
         },
       },
       tooltip: {
@@ -204,21 +216,22 @@ export const ChartBlockRenderer: React.FC<Props> = ({
             x: {
               grid: { color: "rgba(128, 128, 128, 0.15)" },
               ticks: {
-                color: "var(--theme-secondary, #6B7280)",
-                font: { family: "var(--theme-font-body, sans-serif)", size: 14 },
+                color: "#94A3B8",
+                font: { family: canvasFont, size: 18 },
               },
             },
             y: {
               grid: { color: "rgba(128, 128, 128, 0.15)" },
               ticks: {
-                color: "var(--theme-secondary, #6B7280)",
-                font: { family: "var(--theme-font-body, sans-serif)", size: 14 },
+                color: "#94A3B8",
+                font: { family: canvasFont, size: 18 },
               },
             },
           },
   };
 
-  const [is3DMode, setIs3DMode] = useState(true);
+  // The generator picks 2D or 3D per chart type (pie, area and horizontal bars read best flat).
+  const [is3DMode, setIs3DMode] = useState((block as any).props?.render3d ?? (block as any).render3d ?? true);
   const initialKind = normalizedKind;
   const [activeKind, setActiveKind] = useState<string>(initialKind);
 
@@ -236,7 +249,7 @@ export const ChartBlockRenderer: React.FC<Props> = ({
   const isSample = sourceDataset?.source === "ai-estimate";
 
   return (
-    <div className="block-chart" style={{ width: "100%", height: "100%", position: "relative", display: "flex", flexDirection: "column" }}>
+    <div ref={rootRef} className="block-chart" style={{ width: "100%", height: "100%", position: "relative", display: "flex", flexDirection: "column" }}>
       {chartTitle && (
         <div style={{ fontSize: 22, fontWeight: 600, lineHeight: 1.25, marginBottom: 6, paddingRight: interactive ? 320 : 0, color: "var(--theme-text, inherit)" }}>
           {chartTitle}

@@ -87,7 +87,7 @@ def images_of_articles(titles: Iterable[str]) -> List[Dict[str, Any]]:
         WIKI_API,
         {
             "action": "query", "generator": "images", "titles": "|".join(titles), "gimlimit": 80, "prop": "imageinfo",
-            "iiprop": "url|extmetadata|size|mime", "iiurlwidth": 1280, "iiextmetadatafilter": "ImageDescription|Artist|LicenseShortName|LicenseUrl|AttributionRequired",
+            "iiprop": "url|extmetadata|size|mime", "iiurlwidth": 960, "iiextmetadatafilter": "ImageDescription|Artist|LicenseShortName|LicenseUrl|AttributionRequired",
             "redirects": 1, "format": "json",
         },
         timeout=15,

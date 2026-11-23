@@ -179,6 +179,9 @@ export const SlideStage: React.FC<SlideStageProps> = ({
         justifyContent: "center",
         overflow: "hidden",
         position: "relative",
+        // A flex/grid parent must be able to shrink this box below 1920x1080.
+        minWidth: 0,
+        minHeight: 0,
         background: mode === "present" ? "#000000" : "transparent",
         ...style,
       }}
@@ -189,10 +192,14 @@ export const SlideStage: React.FC<SlideStageProps> = ({
         style={{
           width: LOGICAL_WIDTH,
           height: LOGICAL_HEIGHT,
-          transform: `scale(${scale})`,
+          // Out of layout and centred: the 1920x1080 canvas never makes its container bigger
+          // (a transform doesn't shrink layout size, which made the presenter view's slide
+          // panel grow to 1920x1080 and the slide never fit).
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          transform: `translate(-50%, -50%) scale(${scale})`,
           transformOrigin: "center center",
-          flexShrink: 0,
-          position: "relative",
           // `background`, not `backgroundColor`: the canvas value is often a gradient, which
           // background-color rejects, leaving the slide transparent (white titles on the light editor).
           background: backgroundColor,

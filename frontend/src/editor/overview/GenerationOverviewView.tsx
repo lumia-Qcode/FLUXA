@@ -1,14 +1,16 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { DeckDocument } from "../store/types";
 import { Theme } from "../../rendering/themes";
 import { SlideStage } from "../../rendering/SlideStage";
-import { ArrowLeft, Download, ExternalLink, Play, PenLine } from "lucide-react";
+import { preloadDeck } from "../../rendering/preload";
+import { ArrowLeft, Download, ExternalLink, Play, PenLine, Sparkles } from "lucide-react";
 
 interface Props {
   doc: DeckDocument;
   theme: Theme;
   onEditSlide: (slideId: string) => void;
+  onEditWithCopilot?: (slideId: string) => void;
   onPresent: () => void;
   onExport: () => void;
 }
@@ -41,7 +43,7 @@ function slideCitations(slide: any): string[] {
 }
 
 /** Overview after generation: what the deck is, what it's built on, and every slide. */
-export const GenerationOverviewView: React.FC<Props> = ({ doc, theme, onEditSlide, onPresent, onExport }) => {
+export const GenerationOverviewView: React.FC<Props> = ({ doc, theme, onEditSlide, onEditWithCopilot, onPresent, onExport }) => {
   const [tab, setTab] = useState<Tab>("slides");
   const slides = doc.slides || [];
   const dossier = (doc.variables as any)?.research_dossier || {};
@@ -57,6 +59,11 @@ export const GenerationOverviewView: React.FC<Props> = ({ doc, theme, onEditSlid
   const heroSlides = slides.slice(0, 3);
   const words = (doc.title || "Presentation").toUpperCase().split(/\s+/);
   const firstSlideId = slides[0]?.id;
+  // Warm the image cache while the overview is open, so Present starts instantly.
+  useEffect(() => {
+    const id = window.setTimeout(() => preloadDeck(slides), 800);
+    return () => window.clearTimeout(id);
+  }, [slides]);
 
   return (
     <div className="ov">
@@ -129,7 +136,19 @@ export const GenerationOverviewView: React.FC<Props> = ({ doc, theme, onEditSlid
               </dd>
             </div>
           </dl>
-          {doc.description && <p className="ov-brief">{doc.description}</p>}
+          <div className="ov-actions">
+            {doc.description && <p className="ov-brief">{doc.description}</p>}
+            {firstSlideId && (
+              <div className="ov-row">
+                <button type="button" className="ov-start ov-big" onClick={() => (onEditWithCopilot || onEditSlide)(firstSlideId)}>
+                  <Sparkles size={15} strokeWidth={1.75} /> Edit with Copilot
+                </button>
+                <button type="button" className="ov-ghost ov-big" onClick={() => onEditSlide(firstSlideId)}>
+                  <PenLine size={15} strokeWidth={1.75} /> Open editor
+                </button>
+              </div>
+            )}
+          </div>
         </section>
 
         {tab === "slides" && (
@@ -264,7 +283,10 @@ const OV_CSS = `
 .ov-stats dt{font-size:12px;color:#a4a4ac;margin-bottom:6px}
 .ov-stats dd{margin:0;font-size:34px;font-weight:600;line-height:1}
 .ov-stats dd.ov-small{font-size:16px;line-height:1.25;color:var(--peri)}
-.ov-brief{grid-column:1;grid-row:3;margin:20px 0 0;max-width:560px;font-size:14px;line-height:1.6;color:#c9c9d0}
+.ov-actions{grid-column:1;grid-row:3;display:flex;flex-direction:column;gap:18px;margin-top:20px}
+.ov-brief{margin:0;max-width:560px;font-size:14px;line-height:1.6;color:#c9c9d0}
+.ov-row{display:flex;gap:10px;flex-wrap:wrap}
+.ov-big{padding:12px 22px;font-size:14px}
 .ov-section{margin-top:28px}
 .ov-h2{font-size:clamp(28px,3.2vw,44px);font-weight:700;letter-spacing:-.01em;margin:0 0 20px;text-transform:uppercase}
 .ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:22px}

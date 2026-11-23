@@ -38,7 +38,7 @@ HEADERS = {"User-Agent": USER_AGENT}
 BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 " + USER_AGENT.split(" ")[0]
 WIKI_API = "https://en.wikipedia.org/w/api.php"
 HTTP_TIMEOUT = 12
-TOTAL_BUDGET_S = 75
+TOTAL_BUDGET_S = 50
 
 STOPWORDS = set(
     """a an the and or of to in on for with by from at as is are was were be been being this that these those it its
@@ -627,7 +627,7 @@ def _queries(plan: Dict[str, Any]) -> Dict[str, List[Tuple[str, str]]]:
     encyclopedia = [(subject, "")] + [(f"{subject} {s['name']}" if subject.lower() not in s["name"].lower() else s["name"], s["name"]) for s in subs]
     scholarly = [(q, "") for q in plan.get("scholarly_queries") or []] or [(s["search_terms"], s["name"]) for s in subs[:5]]
     web = [(q, "") for q in plan.get("web_queries") or []] or [(f"{s['search_terms']}", s["name"]) for s in subs[:4]]
-    return {"encyclopedia": encyclopedia[:8], "scholarly": scholarly[:6], "web": web[:5]}
+    return {"encyclopedia": encyclopedia[:6], "scholarly": scholarly[:5], "web": web[:4]}
 
 
 def run_research(
@@ -763,7 +763,7 @@ def run_research(
             continue
         per_host[host] = per_host.get(host, 0) + 1
         picked.append(("cited", url, sub))
-        if len(picked) >= (10 if deep else 7):
+        if len(picked) >= (7 if deep else 5):
             break
     if picked:
         note("Reading primary sources cited by encyclopedia articles", queries=len(picked))

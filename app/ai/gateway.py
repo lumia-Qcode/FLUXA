@@ -29,8 +29,9 @@ logger = logging.getLogger(__name__)
 
 # Reasoning effort per feature. Unknown features use "medium".
 FEATURE_EFFORT: Dict[str, str] = {
-    "outline.generate": "high",
-    "deck.generate": "high",
+    # Medium, not high: the free reasoning model spent 25-50 s per call thinking at "high".
+    "outline.generate": "medium",
+    "deck.generate": "medium",
     "research.live": "medium",
     "slide.generate": "medium",
     "slide.enhance": "low",
@@ -50,6 +51,7 @@ FEATURE_EFFORT: Dict[str, str] = {
 CACHE_TTL_S: Dict[str, int] = {"outline.generate": 24 * 3600, "map.generate": 7 * 24 * 3600, "narration.generate": 7 * 24 * 3600}
 
 _ctx: contextvars.ContextVar[Optional[Dict[str, Any]]] = contextvars.ContextVar("fluxa_ai_ctx", default=None)
+_prompt: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("fluxa_ai_prompt", default=None)
 
 
 def init_schema(connection: sqlite3.Connection) -> None:
@@ -84,16 +86,12 @@ def init_schema(connection: sqlite3.Connection) -> None:
 
 @contextlib.contextmanager
 def using_prompt(key: str) -> Iterator[None]:
-    """Tag model calls made inside this block with a prompt id@version."""
-    ctx = _ctx.get()
-    previous = ctx.get("prompt") if ctx else None
-    if ctx is not None:
-        ctx["prompt"] = key
+    """Tag model calls made inside this block with a prompt id@version (per thread / context)."""
+    token = _prompt.set(key)
     try:
         yield
     finally:
-        if ctx is not None:
-            ctx["prompt"] = previous
+        _prompt.reset(token)
 
 
 @contextlib.contextmanager
@@ -184,7 +182,7 @@ def record(route: str, status_text: str, usage: Optional[Dict[str, Any]] = None,
                     usage.get("completion_tokens"),
                     int(total_ms),
                     status_text[:60],
-                    ctx.get("prompt"),
+                    _prompt.get(),
                 ),
             )
             conn.commit()

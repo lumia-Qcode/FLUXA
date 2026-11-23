@@ -10,6 +10,36 @@ interface Isometric3DChartProps {
   unit?: string;
 }
 
+
+/** Category label wrapped to its slot width (max 3 lines, ellipsis after) so neighbours never overlap. */
+function WrappedLabel({ text, x, y, slot, hovered }: { text: string; x: number; y: number; slot: number; hovered: boolean }) {
+  const maxChars = Math.max(6, Math.floor(slot / 6.4));
+  const words = String(text).split(/\s+/);
+  const lines: string[] = [];
+  let line = "";
+  for (const w of words) {
+    const next = line ? `${line} ${w}` : w;
+    if (next.length <= maxChars) line = next;
+    else {
+      if (line) lines.push(line);
+      line = w.length > maxChars ? w.slice(0, maxChars - 1) + "…" : w;
+    }
+  }
+  if (line) lines.push(line);
+  const shown = lines.slice(0, 3);
+  if (lines.length > 3) shown[2] = shown[2].replace(/.?$/, "…");
+  return (
+    <text x={x} y={y} fill={hovered ? "#1E293B" : "#475569"} fontSize="12" fontWeight={hovered ? "700" : "600"} textAnchor="middle" fontFamily="system-ui, sans-serif">
+      <title>{text}</title>
+      {shown.map((l, i) => (
+        <tspan key={i} x={x} dy={i === 0 ? 0 : 14}>
+          {l}
+        </tspan>
+      ))}
+    </text>
+  );
+}
+
 export const Isometric3DChart: React.FC<Isometric3DChartProps> = ({
   kind,
   labels,
@@ -242,17 +272,7 @@ export const Isometric3DChart: React.FC<Isometric3DChartProps> = ({
               </g>
 
               {/* Base Category Label */}
-              <text
-                x={bx + barWidth / 2}
-                y={floorY + 20}
-                fill={isHovered ? "#1E293B" : "#475569"}
-                fontSize="12"
-                fontWeight={isHovered ? "700" : "600"}
-                textAnchor="middle"
-                fontFamily="system-ui, sans-serif"
-              >
-                {labels[idx] || `Item ${idx + 1}`}
-              </text>
+              <WrappedLabel text={labels[idx] || `Item ${idx + 1}`} x={bx + barWidth / 2} y={floorY + 20} slot={barWidth + gap} hovered={isHovered} />
             </g>
           );
         })}
@@ -424,7 +444,8 @@ export const Isometric3DChart: React.FC<Isometric3DChartProps> = ({
           textAnchor="middle"
           fontFamily="system-ui, sans-serif"
         >
-          {seriesLabel}
+          {/* The chart title already sits above the chart; a long one here spilled out of the hole. */}
+          {seriesLabel.length <= 14 ? seriesLabel : ""}
         </text>
 
         {/* Legend pills below donut */}
@@ -583,17 +604,7 @@ export const Isometric3DChart: React.FC<Isometric3DChartProps> = ({
               </g>
 
               {/* Base label */}
-              <text
-                x={p.px}
-                y={floorY + 20}
-                fill={isHovered ? "#1E293B" : "#475569"}
-                fontSize="12"
-                fontWeight={isHovered ? "700" : "600"}
-                textAnchor="middle"
-                fontFamily="system-ui, sans-serif"
-              >
-                {p.label}
-              </text>
+              <WrappedLabel text={p.label} x={p.px} y={floorY + 20} slot={points.length > 1 ? Math.abs(points[1].px - points[0].px) : 200} hovered={isHovered} />
             </g>
           );
         })}

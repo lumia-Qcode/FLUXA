@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Dataset, Slide, Variable } from "../../../shared/spec";
 import { SlideStage } from "./SlideStage";
 import { getTheme, Theme } from "./themes";
+import { preloadDeck } from "./preload";
 import {
   LiveSessionState,
   LivePoll,
@@ -153,6 +154,11 @@ export const PresentMode: React.FC<PresentModeProps> = ({
       clearInterval(interval);
     };
   }, [liveSession?.session_id]);
+
+  // Download every slide's images now (current and next first) so each slide appears instantly.
+  useEffect(() => {
+    preloadDeck(slides, currentIndex);
+  }, [slides, currentIndex]);
 
   // Request Fullscreen on mount
   useEffect(() => {

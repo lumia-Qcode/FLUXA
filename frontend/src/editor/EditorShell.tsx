@@ -7,7 +7,9 @@ import {
   Sparkles,
   Undo2,
   ChevronLeft,
+  ChevronRight,
   ChevronDown,
+  PanelLeft,
   Type,
   Square,
   Image as ImageIcon,
@@ -54,7 +56,36 @@ export const EditorShell: React.FC = () => {
   const [viewMode, setViewMode] = useState<"overview" | "edit">(() => {
     return viewParam === "edit" ? "edit" : "overview";
   });
-  const [showRail] = useState(false);
+  // The slide list on the left is shown by default; the toolbar button hides it for more canvas.
+  const [showRail, setShowRail] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("fluxa.editor.rail") !== "0";
+    } catch {
+      return true;
+    }
+  });
+  const toggleRail = () =>
+    setShowRail((v) => {
+      try {
+        localStorage.setItem("fluxa.editor.rail", v ? "0" : "1");
+      } catch {
+        /* storage unavailable */
+      }
+      return !v;
+    });
+
+  // Opened with ?copilot=1 (the overview's "Edit with Copilot"): open the Copilot panel once the
+  // editor is on screen, then drop the flag so a reload doesn't reopen it.
+  useEffect(() => {
+    if (viewMode !== "edit" || searchParams.get("copilot") !== "1") return;
+    const t = window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("fluxa:open-copilot"));
+      const next = new URLSearchParams(searchParams);
+      next.delete("copilot");
+      setSearchParams(next, { replace: true });
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [viewMode, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (viewParam === "edit" && viewMode !== "edit") {
@@ -235,6 +266,11 @@ export const EditorShell: React.FC = () => {
             setViewMode("edit");
             setSearchParams({ view: "edit", slide: slideId });
           }}
+          onEditWithCopilot={(slideId) => {
+            setSelectedSlideId(slideId);
+            setViewMode("edit");
+            setSearchParams({ view: "edit", slide: slideId, copilot: "1" });
+          }}
           onPresent={() => setPresenting(true)}
           onExport={() => setExportDialogOpen(true)}
         />
@@ -297,6 +333,14 @@ export const EditorShell: React.FC = () => {
   ];
 
   const currentSlideIndex = Math.max(0, doc.slides.findIndex((s) => s.id === selectedSlideId));
+  const goToSlide = (index: number) => {
+    const target = doc.slides[Math.max(0, Math.min(doc.slides.length - 1, index))];
+    if (!target) return;
+    setSelectedSlideId(target.id);
+    const next = new URLSearchParams(searchParams);
+    next.set("slide", target.id);
+    setSearchParams(next, { replace: true });
+  };
 
   return (
     <div
@@ -351,9 +395,26 @@ export const EditorShell: React.FC = () => {
             <span>Done</span>
           </button>
 
-          <span style={{ fontSize: "13px", fontWeight: 500, color: "#6B7280" }}>
+          <Tooltip content={showRail ? "Hide slide list" : "Show slide list"}>
+            <IconButton size="sm" label={showRail ? "Hide slide list" : "Show slide list"} icon={<PanelLeft size={14} />} onClick={toggleRail} />
+          </Tooltip>
+          <IconButton
+            size="sm"
+            label="Previous slide"
+            disabled={currentSlideIndex <= 0}
+            icon={<ChevronLeft size={14} />}
+            onClick={() => goToSlide(currentSlideIndex - 1)}
+          />
+          <span style={{ fontSize: "13px", fontWeight: 500, color: "#6B7280", minWidth: 84, textAlign: "center" }}>
             Slide {currentSlideIndex + 1} of {doc.slides.length}
           </span>
+          <IconButton
+            size="sm"
+            label="Next slide"
+            disabled={currentSlideIndex >= doc.slides.length - 1}
+            icon={<ChevronRight size={14} />}
+            onClick={() => goToSlide(currentSlideIndex + 1)}
+          />
         </div>
 
         {/* Center: Tools (Undo, Redo, T, Square, Image, Chart, Table, Slider, Fit) */}

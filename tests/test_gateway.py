@@ -36,6 +36,8 @@ def test_effort_follows_the_feature():
             assert gateway.effort() == "medium"
         assert gateway.effort() == "low"
     with gateway.session("outline.generate"):
+        assert gateway.effort() == "medium"  # high made the free reasoning model take 25-50 s per call
+    with gateway.session("decision.model"):
         assert gateway.effort() == "high"
 
 

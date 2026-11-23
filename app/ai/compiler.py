@@ -340,10 +340,12 @@ def compile_semantic_slide(
             **({"citations": [f"[{n}]" for n in chart.get("citations") or []]} if from_research else {}),
         }
         kind = chart.get("kind") or "bar"
+        render3d = chart.get("render3d", True)
         blocks.append({"id": _new_id("chart"), "type": "chart", "role": "chart", "kind": kind, "dataset": name, "xField": x_field,
                        "yField": y_field, "series": [{"field": y_field, "label": chart.get("title") or "Value"}], **_box(slots["chart"]),
                        "props": {"kind": kind, "dataset": name, "xField": x_field, "yField": y_field,
                                  "series": [{"field": y_field, "label": chart.get("title") or "Value"}], "title": chart.get("title", ""),
+                                 "render3d": render3d,
                                  "sourceNote": ("Source: " + "".join(f"[{n}]" for n in chart.get("citations") or [])) if from_research else ""}})
         if bullets:
             blocks.append(_text_block("body", "body", slots["body"], bullets=bullets, size=24))

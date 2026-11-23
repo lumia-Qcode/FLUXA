@@ -11,16 +11,11 @@ import { RehearseInspector } from "./RehearseInspector";
 
 export const InspectorPanel: React.FC = () => {
   const { selectedSlide, selectedBlockIds } = useDocument();
-  const isSlide3 = selectedSlide?.order === 2 || selectedSlide?.id === "hosp-s3";
-  const [activeTab, setActiveTab] = useState(() => (isSlide3 ? "data" : "design"));
+  // Opens on Design and stays on whatever tab the user picks while they move between slides
+  // (a demo rule used to force the Data tab on every deck's third slide, closing Copilot).
+  const [activeTab, setActiveTab] = useState("design");
   const [isWide, setIsWide] = useState(false);
   const previousTabRef = useRef<string>("design");
-
-  React.useEffect(() => {
-    if (isSlide3) {
-      setActiveTab("data");
-    }
-  }, [selectedSlide?.id]);
 
   React.useEffect(() => {
     if (activeTab !== "ask") {

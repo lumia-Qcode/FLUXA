@@ -63,20 +63,34 @@ export const SketchfabEmbed: React.FC<Props> = ({ model, interactive = true, rad
       }}
     >
       {interactive ? (
-        <iframe
-          title={`3D model: ${model.name}`}
-          src={src}
-          allow="autoplay; fullscreen; xr-spatial-tracking"
-          allowFullScreen
-          loading="lazy"
-          referrerPolicy="strict-origin-when-cross-origin"
-          style={{ width: "100%", height: "100%", border: 0, display: "block" }}
-        />
+        <>
+          {/* The still image shows at once; the live viewer (several MB) fades in over it when ready. */}
+          {model.thumbnail && (
+            <img
+              src={model.thumbnail}
+              alt=""
+              aria-hidden="true"
+              crossOrigin="anonymous"
+              referrerPolicy="no-referrer"
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          )}
+          <iframe
+            title={`3D model: ${model.name}`}
+            src={src}
+            allow="autoplay; fullscreen; xr-spatial-tracking"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+            onLoad={(e) => ((e.currentTarget as HTMLIFrameElement).style.opacity = "1")}
+            style={{ position: "relative", width: "100%", height: "100%", border: 0, display: "block", opacity: model.thumbnail ? 0 : 1, transition: "opacity 300ms ease" }}
+          />
+        </>
       ) : model.thumbnail ? (
         <img
           src={model.thumbnail}
           alt={model.name}
           crossOrigin="anonymous"
+          referrerPolicy="no-referrer"
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
       ) : null}
