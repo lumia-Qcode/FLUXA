@@ -277,3 +277,5 @@ In accordance with FLUXA's design principles, we disclose all format limitations
 ## 9. License
 
 FLUXA is open-source software licensed under the MIT License.
+#   F L U X A  
+ 
